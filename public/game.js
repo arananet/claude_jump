@@ -6,7 +6,7 @@ const startScreen = document.getElementById('start-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
 
 // Audio
-const bgm = new Audio('music/ES_8-bit Sheriff - Wave Saver.mp3');
+const bgm = new Audio('music/ES_8-bit%20Sheriff%20-%20Wave%20Saver.mp3');
 bgm.loop = true;
 bgm.volume = 0.4;
 
@@ -291,6 +291,7 @@ let nextObstacleTimer = 0;
 let nextFruitTimer = 0;
 let groundDots = [];
 let isRestarting = false;
+let gameOverTime = 0;
 
 function initGround() {
     groundDots = [];
@@ -364,6 +365,7 @@ function die() {
     if (isGameOver) return;
     isPlaying = false;
     isGameOver = true;
+    gameOverTime = Date.now();
     
     bgm.pause();
     dieSfx.currentTime = 0;
@@ -382,12 +384,11 @@ function handleInput() {
         resetGame();
     } else if (isPlaying) {
         player.jump();
-    } else if (isGameOver && !isRestarting) {
-        isRestarting = true;
-        setTimeout(() => { 
-            resetGame(); 
-            isRestarting = false; 
-        }, 300);
+    } else if (isGameOver) {
+        // Direct click without setTimeout to ensure browser allows audio playback on restart
+        if (Date.now() - gameOverTime > 500) {
+            resetGame();
+        }
     }
 }
 
