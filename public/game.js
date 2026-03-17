@@ -155,7 +155,7 @@ class Player {
         }
 
         if (this.y >= GROUND_Y - this.height && this.vy >= 0) {
-            if (!overHole) {
+            if (!overHole && !this.isFalling) {
                 this.y = GROUND_Y - this.height;
                 this.vy = 0;
                 this.isJumping = false;
