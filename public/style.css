@@ -105,3 +105,18 @@ p {
     p { font-size: 10px; }
     #score-display { top: 20px; right: 10px; font-size: 10px; }
 }
+
+@keyframes blink {
+    0% { opacity: 1; }
+    50% { opacity: 0; }
+    100% { opacity: 1; }
+}
+
+#submit-score-btn:hover {
+    background: #F4A688 !important;
+    transform: scale(1.05);
+}
+
+#initials-input:focus {
+    border-color: #D46B4E !important;
+}

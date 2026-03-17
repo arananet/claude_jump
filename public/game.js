@@ -4,6 +4,11 @@ const ctx = canvas.getContext('2d', { alpha: false });
 const scoreDisplay = document.getElementById('score-display');
 const startScreen = document.getElementById('start-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
+const leaderboardList = document.getElementById('leaderboard-list');
+const newHighscoreBox = document.getElementById('new-highscore-box');
+const initialsInput = document.getElementById('initials-input');
+const submitScoreBtn = document.getElementById('submit-score-btn');
+const restartText = document.getElementById('restart-text');
 
 // Audio
 const bgm = new Audio('music/ES_8-bit%20Sheriff%20-%20Wave%20Saver.mp3');
@@ -24,7 +29,15 @@ let isPlaying = false;
 let isGameOver = false;
 let frameCount = 0;
 let score = 0;
-let highScore = localStorage.getItem('claudeJumpHighScore') || 0;
+let highScores = JSON.parse(localStorage.getItem('claudeJumpScoresList')) || [
+    { initials: 'EDU', score: 500 },
+    { initials: 'SDA', score: 400 },
+    { initials: 'CLD', score: 300 },
+    { initials: 'BOT', score: 200 },
+    { initials: 'ANT', score: 100 }
+];
+let topScore = highScores.length > 0 ? highScores[0].score : 0;
+let isEnteringScore = false;
 let gameSpeed = 5;
 
 // Physics
@@ -348,8 +361,22 @@ function resetGame() {
     updateScore();
 }
 
+function renderLeaderboard() {
+    highScores.sort((a, b) => b.score - a.score);
+    highScores = highScores.slice(0, 5);
+    topScore = highScores.length > 0 ? highScores[0].score : 0;
+    
+    let html = '';
+    highScores.forEach((entry, idx) => {
+        let sc = Math.floor(entry.score).toString().padStart(5, '0');
+        let init = entry.initials.padEnd(3, ' ');
+        html += `<div style="display: flex; justify-content: space-between; margin-bottom: 2px;"><span>${idx+1}. ${init}</span><span>${sc}</span></div>`;
+    });
+    if(leaderboardList) leaderboardList.innerHTML = html;
+}
+
 function updateScore() {
-    scoreDisplay.innerHTML = `SCORE: ${Math.floor(score).toString().padStart(5, '0')} &nbsp;&nbsp; HI: ${Math.floor(highScore).toString().padStart(5, '0')}`;
+    scoreDisplay.innerHTML = `SCORE: ${Math.floor(score).toString().padStart(5, '0')} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
 }
 
 function checkCollision(rect1, rect2) {
@@ -371,15 +398,50 @@ function die() {
     dieSfx.currentTime = 0;
     dieSfx.play().catch(e => {});
 
-    if (score > highScore) {
-        highScore = score;
-        localStorage.setItem('claudeJumpHighScore', highScore);
+    let lowestHighScore = highScores.length < 5 ? 0 : highScores[highScores.length-1].score;
+    
+    if (score > lowestHighScore) {
+        isEnteringScore = true;
+        newHighscoreBox.classList.remove('hidden');
+        restartText.classList.add('hidden');
+        initialsInput.value = '';
+        setTimeout(() => initialsInput.focus(), 100);
+    } else {
+        isEnteringScore = false;
+        newHighscoreBox.classList.add('hidden');
+        restartText.classList.remove('hidden');
     }
+    
     updateScore();
     gameOverScreen.classList.remove('hidden');
 }
 
+if(submitScoreBtn) {
+    submitScoreBtn.addEventListener('click', saveNewScore);
+}
+if(initialsInput) {
+    initialsInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') saveNewScore();
+    });
+}
+
+function saveNewScore() {
+    let init = initialsInput.value.trim().toUpperCase().substring(0, 3) || '???';
+    highScores.push({ initials: init, score: Math.floor(score) });
+    highScores.sort((a, b) => b.score - a.score);
+    highScores = highScores.slice(0, 5);
+    localStorage.setItem('claudeJumpScoresList', JSON.stringify(highScores));
+    
+    renderLeaderboard();
+    
+    isEnteringScore = false;
+    newHighscoreBox.classList.add('hidden');
+    restartText.classList.remove('hidden');
+}
+
 function handleInput() {
+    if (isEnteringScore) return;
+    
     if (!isPlaying && !isGameOver) {
         resetGame();
     } else if (isPlaying) {
@@ -475,8 +537,8 @@ function loop() {
         }
         
         score += 0.1;
-        if (frameCount % 600 === 0) {
-            gameSpeed += 0.5;
+        if (frameCount % 300 === 0) { // Every ~5 seconds
+            gameSpeed += 0.3; // Gradual faster ramp
         }
         
         if (frameCount % 10 === 0) {
@@ -495,6 +557,7 @@ function loop() {
 }
 
 // Init
+renderLeaderboard();
 resize();
 updateScore();
 loop();

@@ -12,18 +12,36 @@
         <canvas id="gameCanvas"></canvas>
         <div id="ui-layer">
             <div id="score-display">SCORE: 0 &nbsp;&nbsp; HI: 0</div>
+            
             <div id="start-screen" class="screen">
                 <h1>CLAUDE JUMP</h1>
                 <p>Press SPACE or TAP to start</p>
-                <div class="subtitle">Avoid the Bugs!</div>
-                <div style="margin-top: 30px; font-size: 8px; color: #888; text-align: center; line-height: 1.6;">
+                
+                <div id="leaderboard" style="pointer-events: auto; background: rgba(0,0,0,0.6); padding: 10px 15px; border-radius: 5px; margin: 15px 0; border: 1px solid #444; min-width: 250px; text-align: left; font-size: 10px; line-height: 2; color: #ccc;">
+                    <div style="text-align: center; color: #D46B4E; margin-bottom: 8px; font-size: 12px; letter-spacing: 1px;">TOP JUMPERS</div>
+                    <div id="leaderboard-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                
+                <div style="margin-top: 10px; font-size: 8px; color: #888; text-align: center; line-height: 1.6;">
                     Developed by Eduardo Arana and Soda 🥤<br><br>
                     <span style="color: #555;">Disclaimer: Just for fun!<br>Not affiliated with Anthropic.</span>
                 </div>
             </div>
+            
             <div id="game-over-screen" class="screen hidden">
                 <h1>SYNTAX ERROR</h1>
-                <p>Press SPACE or TAP to restart</p>
+                
+                <div id="new-highscore-box" class="hidden" style="pointer-events: auto; background: rgba(0,0,0,0.85); padding: 20px; border-radius: 5px; margin: 15px 0; border: 2px solid #D46B4E; text-align: center;">
+                    <div style="color: #fff; font-size: 12px; margin-bottom: 15px; animation: blink 1s infinite;">NEW HIGH SCORE!</div>
+                    <input type="text" id="initials-input" maxlength="3" placeholder="AAA" style="width: 100px; text-align: center; background: #000; color: #fff; border: 2px solid #555; font-size: 20px; padding: 10px; font-family: 'Press Start 2P', monospace; text-transform: uppercase; outline: none;">
+                    <br>
+                    <button id="submit-score-btn" style="margin-top: 15px; padding: 10px 15px; background: #D46B4E; color: #fff; border: none; border-radius: 3px; cursor: pointer; font-family: 'Press Start 2P', monospace; font-size: 12px; transition: 0.2s;">SAVE SCORE</button>
+                </div>
+                
+                <p id="restart-text">Press SPACE or TAP to restart</p>
+                
                 <div style="margin-top: 30px; font-size: 8px; color: #888; text-align: center;">
                     Developed by Eduardo Arana and Soda 🥤
                 </div>
