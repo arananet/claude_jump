@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Claude Jump</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui-layer">
+            <div id="score-display">SCORE: 0 &nbsp;&nbsp; HI: 0</div>
+            <div id="start-screen" class="screen">
+                <h1>CLAUDE JUMP</h1>
+                <p>Press SPACE or TAP to start</p>
+                <div class="subtitle">Avoid the Bugs!</div>
+            </div>
+            <div id="game-over-screen" class="screen hidden">
+                <h1>SYNTAX ERROR</h1>
+                <p>Press SPACE or TAP to restart</p>
+            </div>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
