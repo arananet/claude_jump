@@ -21,8 +21,7 @@ body {
     position: relative;
     width: 100%;
     max-width: 800px;
-    height: 100vh;
-    max-height: 300px;
+    aspect-ratio: 8 / 3;
     background-color: #242424;
     border: 4px solid #333;
     border-radius: 8px;
@@ -34,6 +33,7 @@ canvas {
     display: block;
     width: 100%;
     height: 100%;
+    image-rendering: pixelated;
 }
 
 #ui-layer {
@@ -75,7 +75,7 @@ canvas {
 
 h1 {
     font-size: 24px;
-    color: #D97757;
+    color: #D46B4E;
     margin-bottom: 20px;
     text-shadow: 2px 2px 0px #000;
     text-align: center;
@@ -98,8 +98,9 @@ p {
     #game-container {
         border: none;
         border-radius: 0;
-        max-height: 100vh;
-        height: 100vh;
+        width: 100vw;
+        aspect-ratio: auto;
+        height: 50vh;
     }
     h1 { font-size: 20px; }
     p { font-size: 10px; }

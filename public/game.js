@@ -98,18 +98,17 @@ function resize() {
     canvas.height = newH;
     GROUND_Y = canvas.height - Math.max(40, canvas.height * 0.15);
     
-    if (groundDots && groundDots.length === 0) {
+    if (!groundDots || groundDots.length === 0) {
         initGround();
-    } else if (groundDots) {
+    } else {
         let diff = GROUND_Y - oldGround;
         for (let d of groundDots) d.y += diff;
         for (let c of clouds) c.y += diff * 0.4;
         if (player && !player.isFalling) {
-            if (player.y >= oldGround - player.height) {
-                player.y = GROUND_Y - player.height;
-            } else {
-                player.y += diff;
-            }
+            // Keep grounded player on the new ground line
+            player.y = GROUND_Y - player.height;
+            player.vy = 0;
+            player.isJumping = false;
         }
     }
 }
@@ -749,6 +748,9 @@ function loop() {
         frameCount++;
         if (invincibilityTimer > 0) invincibilityTimer--;
         
+        // Safety: If player somehow goes way above screen, bring them back or reset
+        if (player.y < -100) player.y = -100;
+
         // Spawn Obstacles
         nextObstacleTimer--;
         if (nextObstacleTimer <= 0) {
