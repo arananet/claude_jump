@@ -5,6 +5,20 @@ const scoreDisplay = document.getElementById('score-display');
 const startScreen = document.getElementById('start-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
 
+// Audio
+const bgm = new Audio('music/ES_8-bit Sheriff - Wave Saver.mp3');
+bgm.loop = true;
+bgm.volume = 0.4;
+
+const jumpSfx = new Audio('music/mixkit-player-jumping-in-a-video-game-2043.wav');
+jumpSfx.volume = 0.6;
+
+const collectSfx = new Audio('music/mixkit-winning-a-coin-video-game-2069.wav');
+collectSfx.volume = 0.7;
+
+const dieSfx = new Audio('music/mixkit-player-losing-or-failing-2042.wav');
+dieSfx.volume = 0.8;
+
 // Game state
 let isPlaying = false;
 let isGameOver = false;
@@ -135,6 +149,8 @@ class Player {
         if (!this.isJumping && !this.isFalling) {
             this.vy = JUMP_FORCE;
             this.isJumping = true;
+            jumpSfx.currentTime = 0;
+            jumpSfx.play().catch(e => {});
         }
     }
 
@@ -323,6 +339,9 @@ function resetGame() {
     isPlaying = true;
     isGameOver = false;
     
+    bgm.currentTime = 0;
+    bgm.play().catch(e => {});
+    
     startScreen.classList.add('hidden');
     gameOverScreen.classList.add('hidden');
     updateScore();
@@ -345,6 +364,11 @@ function die() {
     if (isGameOver) return;
     isPlaying = false;
     isGameOver = true;
+    
+    bgm.pause();
+    dieSfx.currentTime = 0;
+    dieSfx.play().catch(e => {});
+
     if (score > highScore) {
         highScore = score;
         localStorage.setItem('claudeJumpHighScore', highScore);
@@ -440,6 +464,8 @@ function loop() {
             c.update();
             if (checkCollision(player.getHitbox(), c.getHitbox())) {
                 score += 50; // Bonus score
+                collectSfx.currentTime = 0;
+                collectSfx.play().catch(e => {});
                 collectibles.splice(i, 1);
                 updateScore();
                 continue;
