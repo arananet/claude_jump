@@ -20,11 +20,10 @@ const JUMP_FORCE = -10;
 
 // Colors
 const COLOR_BG = '#242424';
-const COLOR_CLAUDE = '#D97757'; // Anthropic Peach
-const COLOR_BUG = '#e54343'; // Error Red
+const COLOR_CLAUDE = '#D46B4E'; // Adjusted to match the specific CLI Anthropic Peach/Orange
+const COLOR_BUG = '#e54343'; 
 const COLOR_GROUND = '#555555';
-const COLOR_CLAUDE_EYE = '#242424';
-const COLOR_CLAUDE_LIGHT = '#F4A688';
+const COLOR_CLAUDE_EYE = '#000000'; // Black eyes as in the image
 
 // Handle resizing
 function resize() {
@@ -34,7 +33,6 @@ function resize() {
     GROUND_Y = canvas.height - Math.max(40, canvas.height * 0.15);
     initGround();
     
-    // Adjust player if currently grounded to not fall through
     if (player && player.y >= GROUND_Y - player.height) {
         player.y = GROUND_Y - player.height;
     }
@@ -44,17 +42,31 @@ window.addEventListener('resize', resize);
 // --- Sprites ---
 const PIXEL_SIZE = 4; // Scale factor
 
-// Claude Mascot Sprite (Anthropic Logo stylization / asterisk-like star with eyes)
-// Using '1' for main color, '2' for light color, '3' for dark eyes
-const claudeMap = [
-    "   1111   ",
-    "  111111  ",
-    " 11311311 ",
-    " 11111111 ",
-    " 12222221 ",
-    "  111111  ",
-    "  11  11  ",
-    " 11    11 "
+// Claude Mascot Sprite Frames (12x10) based on exact image layout
+const claudeFrame1 = [
+    "  11111111  ",
+    "  13111131  ",
+    "  11111111  ",
+    "111111111111",
+    "111111111111",
+    "  11111111  ",
+    "  11111111  ",
+    "  11111111  ",
+    "  1 1  1 1  ",
+    "  1 1  1 1  "
+];
+
+const claudeFrame2 = [
+    "  11111111  ",
+    "  13111131  ",
+    "  11111111  ",
+    "111111111111",
+    "111111111111",
+    "  11111111  ",
+    "  11111111  ",
+    "  11111111  ",
+    "   1 11 1   ",
+    "   1 11 1   "
 ];
 
 // Enemy Bug Sprite (10x7)
@@ -75,7 +87,6 @@ function drawSprite(x, y, map, defaultColor) {
             if (char === ' ') continue;
             
             if (char === '1' || char === '█') ctx.fillStyle = defaultColor;
-            else if (char === '2') ctx.fillStyle = COLOR_CLAUDE_LIGHT;
             else if (char === '3') ctx.fillStyle = COLOR_CLAUDE_EYE;
             
             ctx.fillRect(x + c * PIXEL_SIZE, y + r * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
@@ -86,9 +97,9 @@ function drawSprite(x, y, map, defaultColor) {
 // --- Entities ---
 class Player {
     constructor() {
-        this.width = 10 * PIXEL_SIZE;
-        this.height = 8 * PIXEL_SIZE;
-        this.x = Math.max(40, canvas.width * 0.1); // Keep slightly inset
+        this.width = 12 * PIXEL_SIZE;
+        this.height = 10 * PIXEL_SIZE;
+        this.x = Math.max(40, canvas.width * 0.1); 
         this.y = GROUND_Y - this.height;
         this.vy = 0;
         this.isJumping = false;
@@ -114,16 +125,23 @@ class Player {
     }
 
     draw() {
-        let offsetY = (!this.isJumping && frameCount % 20 < 10) ? 2 : 0;
-        drawSprite(this.x, this.y + offsetY, claudeMap, COLOR_CLAUDE);
+        let currentMap = claudeFrame1;
+        // Animate legs when running on the ground
+        if (!this.isJumping && isPlaying) {
+            if (Math.floor(frameCount / 6) % 2 === 0) {
+                currentMap = claudeFrame2;
+            }
+        }
+        drawSprite(this.x, this.y, currentMap, COLOR_CLAUDE);
     }
     
     getHitbox() {
+        // Tighten hitbox slightly to be forgiving
         return {
-            x: this.x + PIXEL_SIZE,
-            y: this.y + PIXEL_SIZE,
-            w: this.width - PIXEL_SIZE * 2,
-            h: this.height - PIXEL_SIZE * 2
+            x: this.x + PIXEL_SIZE * 2,
+            y: this.y + PIXEL_SIZE * 2,
+            w: this.width - PIXEL_SIZE * 4,
+            h: this.height - PIXEL_SIZE * 3
         };
     }
 }
@@ -196,7 +214,7 @@ function resetGame() {
     player = new Player();
     obstacles = [];
     score = 0;
-    gameSpeed = Math.min(canvas.width / 100, 6); // scale speed slightly for mobile
+    gameSpeed = Math.min(canvas.width / 100, 6); 
     frameCount = 0;
     nextObstacleTimer = 60;
     
