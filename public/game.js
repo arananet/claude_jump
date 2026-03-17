@@ -76,14 +76,41 @@ const DEATH_MEMES = [
 ];
 
 // Handle resizing
+let lastWidth = 0;
+let lastHeight = 0;
+
 function resize() {
-    canvas.width = canvas.parentElement.clientWidth;
-    canvas.height = canvas.parentElement.clientHeight;
-    GROUND_Y = canvas.height - Math.max(40, canvas.height * 0.15);
-    initGround();
+    let newW = canvas.parentElement.clientWidth;
+    let newH = canvas.parentElement.clientHeight;
     
-    if (player && player.y >= GROUND_Y - player.height && !player.isFalling) {
-        player.y = GROUND_Y - player.height;
+    if (newW === lastWidth && newH === lastHeight) return;
+    
+    // Ignore minor vertical resizes on mobile to prevent the address bar from deleting the floor
+    if (newW === lastWidth && Math.abs(newH - lastHeight) < 150 && lastHeight !== 0) {
+        return; 
+    }
+    
+    let oldGround = GROUND_Y;
+    lastWidth = newW;
+    lastHeight = newH;
+    
+    canvas.width = newW;
+    canvas.height = newH;
+    GROUND_Y = canvas.height - Math.max(40, canvas.height * 0.15);
+    
+    if (groundDots && groundDots.length === 0) {
+        initGround();
+    } else if (groundDots) {
+        let diff = GROUND_Y - oldGround;
+        for (let d of groundDots) d.y += diff;
+        for (let c of clouds) c.y += diff * 0.4;
+        if (player && !player.isFalling) {
+            if (player.y >= oldGround - player.height) {
+                player.y = GROUND_Y - player.height;
+            } else {
+                player.y += diff;
+            }
+        }
     }
 }
 window.addEventListener('resize', resize);
