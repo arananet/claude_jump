@@ -14,37 +14,47 @@ let highScore = localStorage.getItem('claudeJumpHighScore') || 0;
 let gameSpeed = 5;
 
 // Physics
+let GROUND_Y = 240;
 const GRAVITY = 0.6;
 const JUMP_FORCE = -10;
-const GROUND_Y = 240;
 
 // Colors
 const COLOR_BG = '#242424';
-const COLOR_CLAUDE = '#D97757'; // Anthropic Orange/Peach
+const COLOR_CLAUDE = '#D97757'; // Anthropic Peach
 const COLOR_BUG = '#e54343'; // Error Red
 const COLOR_GROUND = '#555555';
+const COLOR_CLAUDE_EYE = '#242424';
+const COLOR_CLAUDE_LIGHT = '#F4A688';
 
 // Handle resizing
 function resize() {
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = canvas.parentElement.clientHeight;
+    // Keep ground near bottom, with some padding
+    GROUND_Y = canvas.height - Math.max(40, canvas.height * 0.15);
+    initGround();
+    
+    // Adjust player if currently grounded to not fall through
+    if (player && player.y >= GROUND_Y - player.height) {
+        player.y = GROUND_Y - player.height;
+    }
 }
 window.addEventListener('resize', resize);
-resize();
 
 // --- Sprites ---
 const PIXEL_SIZE = 4; // Scale factor
 
-// Claude Mascot Sprite (10x8)
+// Claude Mascot Sprite (Anthropic Logo stylization / asterisk-like star with eyes)
+// Using '1' for main color, '2' for light color, '3' for dark eyes
 const claudeMap = [
-    "   ████   ",
-    "  ██████  ",
-    "████  ████",
-    "██████████",
-    " ████████ ",
-    "   ████   ",
-    "  ██  ██  ",
-    " ██    ██ "
+    "   1111   ",
+    "  111111  ",
+    " 11311311 ",
+    " 11111111 ",
+    " 12222221 ",
+    "  111111  ",
+    "  11  11  ",
+    " 11    11 "
 ];
 
 // Enemy Bug Sprite (10x7)
@@ -58,13 +68,17 @@ const bugMap = [
     "  ██  ██  "
 ];
 
-function drawSprite(x, y, map, color) {
-    ctx.fillStyle = color;
+function drawSprite(x, y, map, defaultColor) {
     for (let r = 0; r < map.length; r++) {
         for (let c = 0; c < map[r].length; c++) {
-            if (map[r][c] === '█') {
-                ctx.fillRect(x + c * PIXEL_SIZE, y + r * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-            }
+            let char = map[r][c];
+            if (char === ' ') continue;
+            
+            if (char === '1' || char === '█') ctx.fillStyle = defaultColor;
+            else if (char === '2') ctx.fillStyle = COLOR_CLAUDE_LIGHT;
+            else if (char === '3') ctx.fillStyle = COLOR_CLAUDE_EYE;
+            
+            ctx.fillRect(x + c * PIXEL_SIZE, y + r * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
         }
     }
 }
@@ -74,7 +88,7 @@ class Player {
     constructor() {
         this.width = 10 * PIXEL_SIZE;
         this.height = 8 * PIXEL_SIZE;
-        this.x = 50;
+        this.x = Math.max(40, canvas.width * 0.1); // Keep slightly inset
         this.y = GROUND_Y - this.height;
         this.vy = 0;
         this.isJumping = false;
@@ -100,13 +114,11 @@ class Player {
     }
 
     draw() {
-        // Simple walking animation (bobbing)
         let offsetY = (!this.isJumping && frameCount % 20 < 10) ? 2 : 0;
         drawSprite(this.x, this.y + offsetY, claudeMap, COLOR_CLAUDE);
     }
     
     getHitbox() {
-        // Slightly smaller hitbox than actual sprite width/height for fairness
         return {
             x: this.x + PIXEL_SIZE,
             y: this.y + PIXEL_SIZE,
@@ -133,7 +145,6 @@ class Obstacle {
     }
 
     draw() {
-        // Animated bug legs
         let offsetY = (frameCount % 16 < 8) ? -2 : 0;
         drawSprite(this.x, this.y + offsetY, bugMap, COLOR_BUG);
     }
@@ -153,13 +164,14 @@ let player;
 let obstacles = [];
 let nextObstacleTimer = 0;
 let groundDots = [];
+let isRestarting = false;
 
 function initGround() {
     groundDots = [];
     for(let i=0; i<50; i++) {
         groundDots.push({
             x: Math.random() * canvas.width,
-            y: GROUND_Y + Math.random() * 40
+            y: GROUND_Y + Math.random() * (canvas.height - GROUND_Y)
         });
     }
 }
@@ -168,13 +180,12 @@ function updateGround() {
     ctx.fillStyle = COLOR_GROUND;
     ctx.fillRect(0, GROUND_Y, canvas.width, 2);
     
-    // Draw ground noise
     for(let i=0; i<groundDots.length; i++) {
         let dot = groundDots[i];
-        dot.x -= gameSpeed * 0.8; // Parallax effect
+        dot.x -= gameSpeed * 0.8;
         if (dot.x < 0) {
             dot.x = canvas.width;
-            dot.y = GROUND_Y + Math.random() * 40;
+            dot.y = GROUND_Y + Math.random() * (canvas.height - GROUND_Y);
         }
         ctx.fillRect(dot.x, dot.y, 2, 2);
     }
@@ -185,10 +196,9 @@ function resetGame() {
     player = new Player();
     obstacles = [];
     score = 0;
-    gameSpeed = 6;
+    gameSpeed = Math.min(canvas.width / 100, 6); // scale speed slightly for mobile
     frameCount = 0;
     nextObstacleTimer = 60;
-    initGround();
     
     isPlaying = true;
     isGameOver = false;
@@ -222,8 +232,6 @@ function die() {
     gameOverScreen.classList.remove('hidden');
 }
 
-let isRestarting = false;
-
 function handleInput() {
     if (!isPlaying && !isGameOver) {
         resetGame();
@@ -245,36 +253,34 @@ window.addEventListener('keydown', (e) => {
         handleInput();
     }
 });
-window.addEventListener('touchstart', (e) => {
+canvas.parentElement.addEventListener('touchstart', (e) => {
     e.preventDefault();
     handleInput();
 }, {passive: false});
+canvas.parentElement.addEventListener('mousedown', (e) => {
+    if (e.button === 0) handleInput();
+});
 
 // Game Loop
 function loop() {
     requestAnimationFrame(loop);
     
-    // Clear screen
     ctx.fillStyle = COLOR_BG;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     if (isPlaying) {
         frameCount++;
         
-        // Spawn obstacles
         nextObstacleTimer--;
         if (nextObstacleTimer <= 0) {
             obstacles.push(new Obstacle());
-            // Randomize next spawn, getting slightly tighter as speed increases
             let minTimer = Math.max(30, 80 - gameSpeed * 2);
             let maxTimer = Math.max(60, 150 - gameSpeed * 2);
             nextObstacleTimer = Math.floor(Math.random() * (maxTimer - minTimer + 1) + minTimer);
         }
         
-        // Update entities
         player.update();
         
-        // Check collisions & update obstacles
         for (let i = obstacles.length - 1; i >= 0; i--) {
             let obs = obstacles[i];
             obs.update();
@@ -288,10 +294,9 @@ function loop() {
             }
         }
         
-        // Score & Difficulty
         score += 0.1;
-        if (frameCount % 600 === 0) { // Every ~10 seconds
-            gameSpeed += 0.5; // Increase speed
+        if (frameCount % 600 === 0) {
+            gameSpeed += 0.5;
         }
         
         if (frameCount % 10 === 0) {
@@ -299,7 +304,6 @@ function loop() {
         }
     }
 
-    // Draw everything
     updateGround();
     if (player) player.draw();
     for (let obs of obstacles) {
@@ -307,6 +311,7 @@ function loop() {
     }
 }
 
-// Start loop
+// Init
+resize(); // Call once to set dimensions
 updateScore();
 loop();
