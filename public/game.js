@@ -355,6 +355,7 @@ let nextObstacleTimer = 0;
 let nextFruitTimer = 0;
 let groundDots = [];
 let stars = [];
+let clouds = [];
 let farSkyline = [];
 let nearSkyline = [];
 let isRestarting = false;
@@ -375,6 +376,17 @@ function initGround() {
             x: Math.random() * canvas.width,
             y: Math.random() * GROUND_Y,
             size: Math.random() > 0.8 ? 4 : 2
+        });
+    }
+
+    clouds = [];
+    for(let i=0; i<5; i++) {
+        clouds.push({
+            x: Math.random() * canvas.width * 2,
+            y: 20 + Math.random() * (GROUND_Y / 2.5),
+            w: 40 + Math.random() * 50,
+            h: 12 + Math.random() * 12,
+            speed: 0.05 + Math.random() * 0.05
         });
     }
 
@@ -407,6 +419,25 @@ function drawParallax() {
             s.y = Math.random() * GROUND_Y;
         }
         ctx.fillRect(s.x, s.y, s.size, s.size);
+    }
+
+    // Clouds
+    ctx.fillStyle = '#444444';
+    for(let c of clouds) {
+        if(isPlaying) c.x -= gameSpeed * c.speed;
+        
+        if(c.x + c.w < -10) {
+            c.x = canvas.width + Math.random() * 100;
+            c.y = 20 + Math.random() * (GROUND_Y / 2.5);
+            c.w = 40 + Math.random() * 50;
+            c.h = 12 + Math.random() * 12;
+            c.speed = 0.05 + Math.random() * 0.05;
+        }
+        
+        // Draw 3-layer blocky cloud
+        ctx.fillRect(c.x, c.y, c.w, c.h);
+        ctx.fillRect(c.x + 10, c.y - 8, c.w - 20, 8);
+        ctx.fillRect(c.x + 15, c.y + c.h, c.w - 30, 6);
     }
 
     // Far Skyline
