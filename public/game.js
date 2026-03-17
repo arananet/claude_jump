@@ -9,6 +9,7 @@ const newHighscoreBox = document.getElementById('new-highscore-box');
 const initialsInput = document.getElementById('initials-input');
 const submitScoreBtn = document.getElementById('submit-score-btn');
 const restartText = document.getElementById('restart-text');
+const gameOverTitle = gameOverScreen.querySelector('h1');
 
 // Audio
 const bgm = new Audio('music/bgm.mp3');
@@ -31,7 +32,6 @@ let frameCount = 0;
 let score = 0;
 let highScores = JSON.parse(localStorage.getItem('claudeJumpScoresList')) || [];
 
-// Force leaderboard to have a minimum of 1000
 if (highScores.length === 0 || highScores.some(s => s.score < 1000)) {
     highScores = [
         { initials: 'EDU', score: 5000 },
@@ -47,6 +47,11 @@ let topScore = highScores.length > 0 ? highScores[0].score : 0;
 let isEnteringScore = false;
 let gameSpeed = 7;
 
+// Arcade Mechanics
+let combo = 0;
+let invincibilityTimer = 0;
+let shakeTime = 0;
+
 // Physics
 let GROUND_Y = 240;
 const GRAVITY = 0.6;
@@ -60,7 +65,15 @@ const COLOR_GROUND = '#555555';
 const COLOR_CLAUDE_EYE = '#000000';
 const COLOR_APPLE = '#ff3366';
 const COLOR_BERRY = '#33ccff';
+const COLOR_GPU = '#FFD700'; // Gold Invincibility
 const COLOR_FRUIT_LEAF = '#33cc66';
+
+// Memes
+const DEATH_MEMES = [
+    "SYNTAX ERROR", "GIT PUSH --FORCE", "IT'S A FEATURE", 
+    "SEGMENTATION FAULT", "418 I'M A TEAPOT", "STACK OVERFLOW", 
+    "OOF.JS", "rm -rf /"
+];
 
 // Handle resizing
 function resize() {
@@ -136,6 +149,15 @@ const fruitMap = [
     "  6666  "
 ];
 
+const gpuMap = [
+    " 666666 ",
+    "66111166",
+    "61666616",
+    "61666616",
+    "66111166",
+    " 666666 "
+];
+
 function drawSprite(x, y, map, overrideColor = null) {
     for (let r = 0; r < map.length; r++) {
         for (let c = 0; c < map[r].length; c++) {
@@ -155,7 +177,7 @@ function drawSprite(x, y, map, overrideColor = null) {
 
 // --- Effects ---
 class FloatingText {
-    constructor(x, y, text, color, isStatic = false, duration = 60) {
+    constructor(x, y, text, color, isStatic = false, duration = 60, scale = 1) {
         this.x = x;
         this.y = y;
         this.text = text;
@@ -163,10 +185,11 @@ class FloatingText {
         this.isStatic = isStatic;
         this.maxDuration = duration;
         this.duration = duration;
+        this.scale = scale;
     }
     update() {
         this.duration--;
-        if (!this.isStatic) this.y -= 1;
+        if (!this.isStatic) this.y -= 1.5;
     }
     draw() {
         ctx.save();
@@ -175,17 +198,39 @@ class FloatingText {
         ctx.textAlign = 'center';
         
         if (this.isStatic) {
-            ctx.font = '24px "Press Start 2P", Courier';
-            // Subtle pulse for static text
-            let scale = 1 + Math.sin(frameCount * 0.2) * 0.05;
+            ctx.font = `${24 * this.scale}px "Press Start 2P", Courier`;
+            let scalePulse = 1 + Math.sin(frameCount * 0.2) * 0.05;
             ctx.translate(canvas.width / 2, this.y);
-            ctx.scale(scale, scale);
+            ctx.scale(scalePulse, scalePulse);
             ctx.fillText(this.text, 0, 0);
         } else {
-            ctx.font = '14px "Press Start 2P", Courier';
+            ctx.font = `${14 * this.scale}px "Press Start 2P", Courier`;
             ctx.fillText(this.text, this.x + 20, this.y);
         }
         ctx.restore();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x; 
+        this.y = y; 
+        this.color = color;
+        this.vx = (Math.random() - 0.5) * 12;
+        this.vy = (Math.random() - 0.5) * 12;
+        this.life = 1.0;
+    }
+    update() { 
+        this.x += this.vx; 
+        this.y += this.vy; 
+        this.vy += 0.2; // Gravity for particles
+        this.life -= 0.03; 
+    }
+    draw() { 
+        ctx.fillStyle = this.color; 
+        ctx.globalAlpha = Math.max(0, this.life); 
+        ctx.fillRect(this.x, this.y, PIXEL_SIZE, PIXEL_SIZE); 
+        ctx.globalAlpha = 1; 
     }
 }
 
@@ -248,7 +293,15 @@ class Player {
                 currentMap = claudeFrame2;
             }
         }
-        drawSprite(this.x, this.y, currentMap);
+        
+        let drawColor = COLOR_CLAUDE;
+        if (invincibilityTimer > 0) {
+            // Flash rainbow/gold when invincible
+            const colors = ['#FFD700', '#FFF', '#FF3366', '#33CCFF'];
+            drawColor = colors[Math.floor(frameCount / 4) % colors.length];
+        }
+        
+        drawSprite(this.x, this.y, currentMap, drawColor);
     }
     
     getHitbox() {
@@ -287,14 +340,13 @@ class Obstacle {
 
     update() {
         this.x -= gameSpeed;
-        
-        // Bouncing logic for flying bugs
         if (this.type === 'fly') {
             this.y = this.baseY + Math.sin(frameCount * 0.1 + this.bounceOffset) * 15;
         }
-        
         if (this.x + this.width < 0) {
             this.markedForDeletion = true;
+            // Dropped combo if an obstacle is passed safely? 
+            // Nah, let's keep combo strictly to consecutive fruits.
         }
     }
 
@@ -321,9 +373,9 @@ class Obstacle {
 
 class Collectible {
     constructor(type) {
-        this.type = type; // 'apple' (+50 score) or 'berry' (slow down)
+        this.type = type; // 'apple', 'berry', 'gpu'
         this.width = 8 * PIXEL_SIZE;
-        this.height = 5 * PIXEL_SIZE;
+        this.height = 6 * PIXEL_SIZE;
         this.x = canvas.width;
         this.y = Math.random() > 0.5 ? GROUND_Y - this.height - 40 : GROUND_Y - this.height - 10;
         this.markedForDeletion = false;
@@ -332,13 +384,20 @@ class Collectible {
 
     update() {
         this.x -= gameSpeed;
-        if (this.x + this.width < 0) this.markedForDeletion = true;
+        if (this.x + this.width < 0) {
+            this.markedForDeletion = true;
+            combo = 0; // Reset combo if you miss a fruit!
+        }
     }
 
     draw() {
         let yOffset = Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
-        let color = this.type === 'apple' ? COLOR_APPLE : COLOR_BERRY;
-        drawSprite(this.x, this.y + yOffset, fruitMap, color);
+        if (this.type === 'gpu') {
+            drawSprite(this.x, this.y + yOffset, gpuMap, COLOR_GPU);
+        } else {
+            let color = this.type === 'apple' ? COLOR_APPLE : COLOR_BERRY;
+            drawSprite(this.x, this.y + yOffset, fruitMap, color);
+        }
     }
 
     getHitbox() {
@@ -351,6 +410,7 @@ let player;
 let obstacles = [];
 let collectibles = [];
 let floatTexts = [];
+let particles = [];
 let nextObstacleTimer = 0;
 let nextFruitTimer = 0;
 let groundDots = [];
@@ -360,6 +420,16 @@ let farSkyline = [];
 let nearSkyline = [];
 let isRestarting = false;
 let gameOverTime = 0;
+
+function spawnExplosion(x, y, color) {
+    for(let i=0; i<15; i++) {
+        particles.push(new Particle(x, y, color));
+    }
+}
+
+function triggerShake(duration) {
+    shakeTime = duration;
+}
 
 function initGround() {
     groundDots = [];
@@ -410,7 +480,6 @@ function initGround() {
 }
 
 function drawParallax() {
-    // Stars
     ctx.fillStyle = '#3a3a3a';
     for(let s of stars) {
         if(isPlaying) s.x -= gameSpeed * 0.1;
@@ -421,7 +490,6 @@ function drawParallax() {
         ctx.fillRect(s.x, s.y, s.size, s.size);
     }
 
-    // Clouds
     ctx.fillStyle = '#444444';
     for(let c of clouds) {
         if(isPlaying) c.x -= gameSpeed * c.speed;
@@ -434,19 +502,16 @@ function drawParallax() {
             c.speed = 0.05 + Math.random() * 0.05;
         }
         
-        // Draw 3-layer blocky cloud
         ctx.fillRect(c.x, c.y, c.w, c.h);
         ctx.fillRect(c.x + 10, c.y - 8, c.w - 20, 8);
         ctx.fillRect(c.x + 15, c.y + c.h, c.w - 30, 6);
     }
 
-    // Far Skyline
     ctx.fillStyle = '#2a2a2a';
     for(let i = 0; i < farSkyline.length; i++) {
         let b = farSkyline[i];
         if(isPlaying) b.x -= gameSpeed * 0.25;
         
-        // Wrap around
         if(b.x + b.w < 0) {
             let lastX = Math.max(...farSkyline.map(f => f.x + f.w));
             b.x = Math.max(canvas.width, lastX) + Math.random() * 10;
@@ -455,7 +520,6 @@ function drawParallax() {
         ctx.fillRect(b.x, GROUND_Y - b.h, b.w, b.h);
     }
 
-    // Near Skyline
     ctx.fillStyle = '#333333';
     for(let i = 0; i < nearSkyline.length; i++) {
         let b = nearSkyline[i];
@@ -507,7 +571,8 @@ function renderLeaderboard() {
 }
 
 function updateScore() {
-    scoreDisplay.innerHTML = `SCORE: ${Math.floor(score).toString().padStart(5, '0')} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
+    let comboStr = combo > 1 ? ` &nbsp; <span style="color:#FFD700">x${combo}</span>` : '';
+    scoreDisplay.innerHTML = `SCORE: ${Math.floor(score).toString().padStart(5, '0')}${comboStr} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
 }
 
 // --- Core Logic ---
@@ -516,8 +581,12 @@ function resetGame() {
     obstacles = [];
     collectibles = [];
     floatTexts = [];
+    particles = [];
     score = 0;
-    gameSpeed = Math.min(canvas.width / 80, 8.5); // Starts noticeably faster
+    combo = 0;
+    invincibilityTimer = 0;
+    shakeTime = 0;
+    gameSpeed = Math.min(canvas.width / 80, 8.5); 
     frameCount = 0;
     nextObstacleTimer = 60;
     nextFruitTimer = 120;
@@ -534,15 +603,6 @@ function resetGame() {
     updateScore();
 }
 
-function checkCollision(rect1, rect2) {
-    return (
-        rect1.x < rect2.x + rect2.w &&
-        rect1.x + rect1.w > rect2.x &&
-        rect1.y < rect2.y + rect2.h &&
-        rect1.h + rect1.y > rect2.y
-    );
-}
-
 function die() {
     if (isGameOver) return;
     isPlaying = false;
@@ -553,9 +613,13 @@ function die() {
     dieSfx.currentTime = 0;
     dieSfx.play().catch(e => {});
 
+    triggerShake(15);
+    
+    // Pick random meme
+    gameOverTitle.innerText = DEATH_MEMES[Math.floor(Math.random() * DEATH_MEMES.length)];
+
     let lowestHighScore = highScores.length < 5 ? 0 : highScores[highScores.length-1].score;
     
-    // Only ask for initials if score is greater than 1000 AND beats the lowest high score
     if (score >= 1000 && score > lowestHighScore) {
         isEnteringScore = true;
         newHighscoreBox.classList.remove('hidden');
@@ -646,10 +710,17 @@ function loop() {
     ctx.fillStyle = COLOR_BG;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
+    ctx.save();
+    if (shakeTime > 0) {
+        ctx.translate((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+        shakeTime--;
+    }
+    
     drawParallax();
     
     if (isPlaying) {
         frameCount++;
+        if (invincibilityTimer > 0) invincibilityTimer--;
         
         // Spawn Obstacles
         nextObstacleTimer--;
@@ -670,13 +741,16 @@ function loop() {
             nextObstacleTimer = Math.floor(Math.random() * (maxTimer - minTimer + 1) + minTimer);
         }
 
-        // Spawn Fruits (more frequently)
+        // Spawn Fruits / Collectibles
         nextFruitTimer--;
         if (nextFruitTimer <= 0) {
-            // 20% chance for a berry, 80% for an apple
-            let fType = Math.random() > 0.8 ? 'berry' : 'apple';
+            let r = Math.random();
+            let fType = 'apple';
+            if (r > 0.95) fType = 'gpu'; // 5% chance for Invincibility GPU
+            else if (r > 0.75) fType = 'berry'; // 20% chance for Time-Slow Berry
+            
             collectibles.push(new Collectible(fType));
-            nextFruitTimer = Math.floor(Math.random() * 80 + 80); // Spawn faster
+            nextFruitTimer = Math.floor(Math.random() * 80 + 60); 
         }
         
         player.update();
@@ -687,7 +761,18 @@ function loop() {
             obs.update();
             
             if (obs.type !== 'hole' && checkCollision(player.getHitbox(), obs.getHitbox())) {
-                die();
+                if (invincibilityTimer > 0) {
+                    // Smash the bug!
+                    obs.markedForDeletion = true;
+                    score += 100;
+                    spawnExplosion(obs.x, obs.y, COLOR_BUG);
+                    triggerShake(5);
+                    collectSfx.currentTime = 0;
+                    collectSfx.play().catch(e=>{});
+                    floatTexts.push(new FloatingText(obs.x, obs.y, "SMASH!", "#FFF"));
+                } else {
+                    die();
+                }
             }
             
             if (obs.markedForDeletion) {
@@ -700,18 +785,29 @@ function loop() {
             let c = collectibles[i];
             c.update();
             if (checkCollision(player.getHitbox(), c.getHitbox())) {
+                combo++;
+                let comboBonus = c.type === 'apple' ? 50 * combo : 100 * combo;
+                score += comboBonus;
+                
                 collectSfx.currentTime = 0;
                 collectSfx.play().catch(e => {});
+                spawnExplosion(c.x, c.y, c.type === 'apple' ? COLOR_APPLE : COLOR_BERRY);
                 
                 if (c.type === 'apple') {
-                    score += 50;
-                    floatTexts.push(new FloatingText(c.x, c.y, "+50", COLOR_APPLE));
+                    floatTexts.push(new FloatingText(c.x, c.y, `+${comboBonus}`, COLOR_APPLE));
                 } else if (c.type === 'berry') {
-                    score += 100;
-                    gameSpeed = Math.max(5, gameSpeed - 1.5); // Slow down the game!
-                    bgm.playbackRate = Math.max(1.0, bgm.playbackRate - 0.1);
-                    floatTexts.push(new FloatingText(0, 100, "TIME SLOW!", COLOR_BERRY, true, 80));
+                    gameSpeed = Math.max(6, gameSpeed - 2.0); 
+                    bgm.playbackRate = Math.max(1.0, bgm.playbackRate - 0.2);
+                    floatTexts.push(new FloatingText(0, 100, "TIME SLOW!", COLOR_BERRY, true, 80, 1.5));
+                } else if (c.type === 'gpu') {
+                    invincibilityTimer = 400; // ~6.5 seconds of invincibility
+                    floatTexts.push(new FloatingText(0, 100, "AGI MODE!", COLOR_GPU, true, 100, 1.5));
                 }
+                
+                // Combo Memes
+                if (combo === 3) floatTexts.push(new FloatingText(0, 140, "OPTIMIZED!", "#FFF", true, 60));
+                if (combo === 5) floatTexts.push(new FloatingText(0, 140, "STONKS \uD83D\uDCC8", "#00FF00", true, 80));
+                if (combo === 10) floatTexts.push(new FloatingText(0, 140, "100x ENGINEER!", "#FFD700", true, 100, 1.5));
                 
                 collectibles.splice(i, 1);
                 updateScore();
@@ -720,20 +816,24 @@ function loop() {
             if (c.markedForDeletion) collectibles.splice(i, 1);
         }
         
+        // Particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            if (particles[i].life <= 0) particles.splice(i, 1);
+        }
+
         // Floating Texts
         for (let i = floatTexts.length - 1; i >= 0; i--) {
             floatTexts[i].update();
             if (floatTexts[i].duration <= 0) floatTexts.splice(i, 1);
         }
         
-        score += 0.2; // Score scales up a bit faster to reach the 1000+ marks
+        score += 0.2;
         
-        // Ramp up and show SPEED UP!
-        if (frameCount % 240 === 0) { // Every ~4 seconds
+        if (frameCount % 240 === 0) { 
             gameSpeed += 0.4;
             bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.03);
             if (frameCount > 240) {
-                // Flash message in center
                 floatTexts.push(new FloatingText(0, canvas.height/3, "SPEED UP!", "#FFCC00", true, 60));
             }
         }
@@ -741,7 +841,7 @@ function loop() {
         if (frameCount % 10 === 0) updateScore();
     }
 
-    updateGround();
+    updateGround(); 
     if (player) player.draw();
     for (let obs of obstacles) {
         obs.draw();
@@ -749,6 +849,13 @@ function loop() {
     for (let c of collectibles) {
         c.draw();
     }
+    for (let p of particles) {
+        p.draw();
+    }
+    
+    ctx.restore(); // End shake translation
+    
+    // Draw float texts outside the shake layer so UI doesn't blur
     for (let ft of floatTexts) {
         ft.draw();
     }
