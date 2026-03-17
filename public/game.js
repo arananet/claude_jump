@@ -353,6 +353,7 @@ function resetGame() {
     isPlaying = true;
     isGameOver = false;
     
+    bgm.playbackRate = 1.0;
     bgm.currentTime = 0;
     bgm.play().catch(e => {});
     
@@ -539,6 +540,7 @@ function loop() {
         score += 0.1;
         if (frameCount % 300 === 0) { // Every ~5 seconds
             gameSpeed += 0.3; // Gradual faster ramp
+            bgm.playbackRate = Math.min(2.0, bgm.playbackRate + 0.02); // Accelerate music slightly
         }
         
         if (frameCount % 10 === 0) {
