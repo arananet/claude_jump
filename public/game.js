@@ -20,29 +20,29 @@ const JUMP_FORCE = -10;
 
 // Colors
 const COLOR_BG = '#242424';
-const COLOR_CLAUDE = '#D46B4E'; // Adjusted to match the specific CLI Anthropic Peach/Orange
+const COLOR_CLAUDE = '#D46B4E'; 
 const COLOR_BUG = '#e54343'; 
 const COLOR_GROUND = '#555555';
-const COLOR_CLAUDE_EYE = '#000000'; // Black eyes as in the image
+const COLOR_CLAUDE_EYE = '#000000';
+const COLOR_FRUIT_BODY = '#ff3366';
+const COLOR_FRUIT_LEAF = '#33cc66';
 
 // Handle resizing
 function resize() {
     canvas.width = canvas.parentElement.clientWidth;
     canvas.height = canvas.parentElement.clientHeight;
-    // Keep ground near bottom, with some padding
     GROUND_Y = canvas.height - Math.max(40, canvas.height * 0.15);
     initGround();
     
-    if (player && player.y >= GROUND_Y - player.height) {
+    if (player && player.y >= GROUND_Y - player.height && !player.isFalling) {
         player.y = GROUND_Y - player.height;
     }
 }
 window.addEventListener('resize', resize);
 
 // --- Sprites ---
-const PIXEL_SIZE = 4; // Scale factor
+const PIXEL_SIZE = 4;
 
-// Claude Mascot Sprite Frames (12x10) based on exact image layout
 const claudeFrame1 = [
     "  11111111  ",
     "  13111131  ",
@@ -69,15 +69,36 @@ const claudeFrame2 = [
     "   1 11 1   "
 ];
 
-// Enemy Bug Sprite (10x7)
 const bugMap = [
-    "   ████   ",
-    "  ██  ██  ",
-    " ████████ ",
-    "██ ████ ██",
-    "██████████",
-    " ████████ ",
-    "  ██  ██  "
+    "   4444   ",
+    "  44  44  ",
+    " 44444444 ",
+    "44 4444 44",
+    "4444444444",
+    " 44444444 ",
+    "  44  44  "
+];
+
+const flyMap1 = [
+    "  4444  ",
+    "44 44 44",
+    " 444444 ",
+    "   44   "
+];
+
+const flyMap2 = [
+    "   44   ",
+    "44444444",
+    " 444444 ",
+    "  4  4  "
+];
+
+const fruitMap = [
+    "   55   ",
+    "  6666  ",
+    " 666666 ",
+    " 666666 ",
+    "  6666  "
 ];
 
 function drawSprite(x, y, map, defaultColor) {
@@ -86,8 +107,12 @@ function drawSprite(x, y, map, defaultColor) {
             let char = map[r][c];
             if (char === ' ') continue;
             
-            if (char === '1' || char === '█') ctx.fillStyle = defaultColor;
+            if (char === '1') ctx.fillStyle = COLOR_CLAUDE;
             else if (char === '3') ctx.fillStyle = COLOR_CLAUDE_EYE;
+            else if (char === '4') ctx.fillStyle = COLOR_BUG;
+            else if (char === '5') ctx.fillStyle = COLOR_FRUIT_LEAF;
+            else if (char === '6') ctx.fillStyle = COLOR_FRUIT_BODY;
+            else ctx.fillStyle = defaultColor;
             
             ctx.fillRect(x + c * PIXEL_SIZE, y + r * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
         }
@@ -103,10 +128,11 @@ class Player {
         this.y = GROUND_Y - this.height;
         this.vy = 0;
         this.isJumping = false;
+        this.isFalling = false;
     }
 
     jump() {
-        if (!this.isJumping) {
+        if (!this.isJumping && !this.isFalling) {
             this.vy = JUMP_FORCE;
             this.isJumping = true;
         }
@@ -116,18 +142,37 @@ class Player {
         this.y += this.vy;
         this.vy += GRAVITY;
 
-        // Ground collision
-        if (this.y >= GROUND_Y - this.height) {
-            this.y = GROUND_Y - this.height;
-            this.vy = 0;
-            this.isJumping = false;
+        let overHole = false;
+        for (let obs of obstacles) {
+            if (obs.type === 'hole') {
+                // To fall, center of mass must be in the hole
+                let pLeft = this.x + PIXEL_SIZE * 3;
+                let pRight = this.x + this.width - PIXEL_SIZE * 3;
+                if (pLeft > obs.x && pRight < obs.x + obs.width) {
+                    overHole = true;
+                }
+            }
+        }
+
+        if (this.y >= GROUND_Y - this.height && this.vy >= 0) {
+            if (!overHole) {
+                this.y = GROUND_Y - this.height;
+                this.vy = 0;
+                this.isJumping = false;
+                this.isFalling = false;
+            } else {
+                this.isFalling = true; // Down we go
+            }
+        }
+
+        if (this.y > canvas.height + 50) {
+            die();
         }
     }
 
     draw() {
         let currentMap = claudeFrame1;
-        // Animate legs when running on the ground
-        if (!this.isJumping && isPlaying) {
+        if (!this.isJumping && !this.isFalling && isPlaying) {
             if (Math.floor(frameCount / 6) % 2 === 0) {
                 currentMap = claudeFrame2;
             }
@@ -136,7 +181,6 @@ class Player {
     }
     
     getHitbox() {
-        // Tighten hitbox slightly to be forgiving
         return {
             x: this.x + PIXEL_SIZE * 2,
             y: this.y + PIXEL_SIZE * 2,
@@ -147,12 +191,26 @@ class Player {
 }
 
 class Obstacle {
-    constructor() {
-        this.width = 10 * PIXEL_SIZE;
-        this.height = 7 * PIXEL_SIZE;
+    constructor(type) {
+        this.type = type;
         this.x = canvas.width;
-        this.y = GROUND_Y - this.height;
         this.markedForDeletion = false;
+
+        if (this.type === 'bug') {
+            this.width = 10 * PIXEL_SIZE;
+            this.height = 7 * PIXEL_SIZE;
+            this.y = GROUND_Y - this.height;
+        } else if (this.type === 'fly') {
+            this.width = 8 * PIXEL_SIZE;
+            this.height = 4 * PIXEL_SIZE;
+            // High or low fly
+            let isHigh = Math.random() > 0.5;
+            this.y = isHigh ? GROUND_Y - this.height - 45 : GROUND_Y - this.height - 15;
+        } else if (this.type === 'hole') {
+            this.width = 20 * PIXEL_SIZE + Math.random() * 20 * PIXEL_SIZE; // Variable hole size
+            this.height = 0; // Handled in ground rendering
+            this.y = GROUND_Y;
+        }
     }
 
     update() {
@@ -163,11 +221,17 @@ class Obstacle {
     }
 
     draw() {
-        let offsetY = (frameCount % 16 < 8) ? -2 : 0;
-        drawSprite(this.x, this.y + offsetY, bugMap, COLOR_BUG);
+        if (this.type === 'bug') {
+            let offsetY = (frameCount % 16 < 8) ? -2 : 0;
+            drawSprite(this.x, this.y + offsetY, bugMap, COLOR_BUG);
+        } else if (this.type === 'fly') {
+            let flyMap = (frameCount % 12 < 6) ? flyMap1 : flyMap2;
+            drawSprite(this.x, this.y, flyMap, COLOR_BUG);
+        }
     }
 
     getHitbox() {
+        if (this.type === 'hole') return { x:-1000, y:-1000, w:0, h:0 }; // Holes handled via gravity
         return {
             x: this.x + PIXEL_SIZE,
             y: this.y + PIXEL_SIZE,
@@ -177,10 +241,38 @@ class Obstacle {
     }
 }
 
+class Collectible {
+    constructor() {
+        this.width = 8 * PIXEL_SIZE;
+        this.height = 5 * PIXEL_SIZE;
+        this.x = canvas.width;
+        // Spawn high or low
+        this.y = Math.random() > 0.5 ? GROUND_Y - this.height - 40 : GROUND_Y - this.height - 10;
+        this.markedForDeletion = false;
+        this.hoverOffset = Math.random() * Math.PI * 2;
+    }
+
+    update() {
+        this.x -= gameSpeed;
+        if (this.x + this.width < 0) this.markedForDeletion = true;
+    }
+
+    draw() {
+        let yOffset = Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
+        drawSprite(this.x, this.y + yOffset, fruitMap, COLOR_FRUIT_BODY);
+    }
+
+    getHitbox() {
+        return { x: this.x, y: this.y, w: this.width, h: this.height };
+    }
+}
+
 // --- Game Variables ---
 let player;
 let obstacles = [];
+let collectibles = [];
 let nextObstacleTimer = 0;
+let nextFruitTimer = 0;
 let groundDots = [];
 let isRestarting = false;
 
@@ -207,16 +299,26 @@ function updateGround() {
         }
         ctx.fillRect(dot.x, dot.y, 2, 2);
     }
+
+    // Mask out the ground line and dots where holes are
+    for(let obs of obstacles) {
+        if (obs.type === 'hole') {
+            ctx.fillStyle = COLOR_BG;
+            ctx.fillRect(obs.x, GROUND_Y, obs.width, canvas.height - GROUND_Y);
+        }
+    }
 }
 
 // --- Core Logic ---
 function resetGame() {
     player = new Player();
     obstacles = [];
+    collectibles = [];
     score = 0;
     gameSpeed = Math.min(canvas.width / 100, 6); 
     frameCount = 0;
     nextObstacleTimer = 60;
+    nextFruitTimer = 120;
     
     isPlaying = true;
     isGameOver = false;
@@ -240,6 +342,7 @@ function checkCollision(rect1, rect2) {
 }
 
 function die() {
+    if (isGameOver) return;
     isPlaying = false;
     isGameOver = true;
     if (score > highScore) {
@@ -289,27 +392,59 @@ function loop() {
     if (isPlaying) {
         frameCount++;
         
+        // Spawn Obstacles
         nextObstacleTimer--;
         if (nextObstacleTimer <= 0) {
-            obstacles.push(new Obstacle());
-            let minTimer = Math.max(30, 80 - gameSpeed * 2);
-            let maxTimer = Math.max(60, 150 - gameSpeed * 2);
+            let type = 'bug';
+            let r = Math.random();
+            if (score > 150) {
+                if (r > 0.7) type = 'fly';
+                else if (r > 0.4) type = 'hole';
+            } else if (score > 50) {
+                if (r > 0.6) type = 'hole';
+            }
+
+            obstacles.push(new Obstacle(type));
+            
+            let minTimer = Math.max(40, 90 - gameSpeed * 2);
+            let maxTimer = Math.max(70, 160 - gameSpeed * 2);
             nextObstacleTimer = Math.floor(Math.random() * (maxTimer - minTimer + 1) + minTimer);
+        }
+
+        // Spawn Fruits
+        nextFruitTimer--;
+        if (nextFruitTimer <= 0) {
+            collectibles.push(new Collectible());
+            nextFruitTimer = Math.floor(Math.random() * 100 + 100);
         }
         
         player.update();
         
+        // Obstacles
         for (let i = obstacles.length - 1; i >= 0; i--) {
             let obs = obstacles[i];
             obs.update();
             
-            if (checkCollision(player.getHitbox(), obs.getHitbox())) {
+            if (obs.type !== 'hole' && checkCollision(player.getHitbox(), obs.getHitbox())) {
                 die();
             }
             
             if (obs.markedForDeletion) {
                 obstacles.splice(i, 1);
             }
+        }
+
+        // Fruits
+        for (let i = collectibles.length - 1; i >= 0; i--) {
+            let c = collectibles[i];
+            c.update();
+            if (checkCollision(player.getHitbox(), c.getHitbox())) {
+                score += 50; // Bonus score
+                collectibles.splice(i, 1);
+                updateScore();
+                continue;
+            }
+            if (c.markedForDeletion) collectibles.splice(i, 1);
         }
         
         score += 0.1;
@@ -322,14 +457,17 @@ function loop() {
         }
     }
 
-    updateGround();
+    updateGround(); // Erases ground for holes
     if (player) player.draw();
     for (let obs of obstacles) {
         obs.draw();
     }
+    for (let c of collectibles) {
+        c.draw();
+    }
 }
 
 // Init
-resize(); // Call once to set dimensions
+resize();
 updateScore();
 loop();
