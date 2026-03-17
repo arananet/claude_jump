@@ -11,7 +11,7 @@ const submitScoreBtn = document.getElementById('submit-score-btn');
 const restartText = document.getElementById('restart-text');
 
 // Audio
-const bgm = new Audio('music/ES_8-bit%20Sheriff%20-%20Wave%20Saver.mp3');
+const bgm = new Audio('music/bgm.mp3');
 bgm.loop = true;
 bgm.volume = 0.4;
 
@@ -445,7 +445,8 @@ function die() {
 
     let lowestHighScore = highScores.length < 5 ? 0 : highScores[highScores.length-1].score;
     
-    if (score > lowestHighScore) {
+    // Only ask for initials if score is greater than 1000 AND beats the lowest high score
+    if (score >= 1000 && score > lowestHighScore) {
         isEnteringScore = true;
         newHighscoreBox.classList.remove('hidden');
         restartText.classList.add('hidden');
@@ -462,12 +463,23 @@ function die() {
 }
 
 if(submitScoreBtn) {
-    submitScoreBtn.addEventListener('click', saveNewScore);
+    submitScoreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        saveNewScore();
+    });
+    submitScoreBtn.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        saveNewScore();
+    }, {passive: false});
 }
 if(initialsInput) {
     initialsInput.addEventListener('keydown', (e) => {
+        e.stopPropagation();
         if (e.key === 'Enter') saveNewScore();
     });
+    initialsInput.addEventListener('mousedown', e => e.stopPropagation());
+    initialsInput.addEventListener('touchstart', e => e.stopPropagation(), {passive: false});
 }
 
 function saveNewScore() {
@@ -481,7 +493,11 @@ function saveNewScore() {
     
     isEnteringScore = false;
     newHighscoreBox.classList.add('hidden');
-    restartText.classList.remove('hidden');
+    gameOverScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+    
+    isPlaying = false;
+    isGameOver = false;
 }
 
 function handleInput() {
