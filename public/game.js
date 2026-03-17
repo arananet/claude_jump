@@ -29,16 +29,23 @@ let isPlaying = false;
 let isGameOver = false;
 let frameCount = 0;
 let score = 0;
-let highScores = JSON.parse(localStorage.getItem('claudeJumpScoresList')) || [
-    { initials: 'EDU', score: 500 },
-    { initials: 'SDA', score: 400 },
-    { initials: 'CLD', score: 300 },
-    { initials: 'BOT', score: 200 },
-    { initials: 'ANT', score: 100 }
-];
+let highScores = JSON.parse(localStorage.getItem('claudeJumpScoresList')) || [];
+
+// Force leaderboard to have a minimum of 1000
+if (highScores.length === 0 || highScores.some(s => s.score < 1000)) {
+    highScores = [
+        { initials: 'EDU', score: 5000 },
+        { initials: 'SDA', score: 4000 },
+        { initials: 'CLD', score: 3000 },
+        { initials: 'BOT', score: 2000 },
+        { initials: 'ANT', score: 1000 }
+    ];
+    localStorage.setItem('claudeJumpScoresList', JSON.stringify(highScores));
+}
+
 let topScore = highScores.length > 0 ? highScores[0].score : 0;
 let isEnteringScore = false;
-let gameSpeed = 5;
+let gameSpeed = 7;
 
 // Physics
 let GROUND_Y = 240;
@@ -407,7 +414,7 @@ function resetGame() {
     collectibles = [];
     floatTexts = [];
     score = 0;
-    gameSpeed = Math.min(canvas.width / 100, 6); 
+    gameSpeed = Math.min(canvas.width / 80, 8.5); // Starts noticeably faster
     frameCount = 0;
     nextObstacleTimer = 60;
     nextFruitTimer = 120;
@@ -544,10 +551,10 @@ function loop() {
         if (nextObstacleTimer <= 0) {
             let type = 'bug';
             let r = Math.random();
-            if (score > 150) {
+            if (score > 300) {
                 if (r > 0.6) type = 'fly';
                 else if (r > 0.3) type = 'hole';
-            } else if (score > 50) {
+            } else if (score > 100) {
                 if (r > 0.6) type = 'hole';
             }
 
@@ -614,13 +621,13 @@ function loop() {
             if (floatTexts[i].duration <= 0) floatTexts.splice(i, 1);
         }
         
-        score += 0.1;
+        score += 0.2; // Score scales up a bit faster to reach the 1000+ marks
         
         // Ramp up and show SPEED UP!
-        if (frameCount % 300 === 0) {
-            gameSpeed += 0.3;
-            bgm.playbackRate = Math.min(2.0, bgm.playbackRate + 0.02);
-            if (frameCount > 300) {
+        if (frameCount % 240 === 0) { // Every ~4 seconds
+            gameSpeed += 0.4;
+            bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.03);
+            if (frameCount > 240) {
                 // Flash message in center
                 floatTexts.push(new FloatingText(0, canvas.height/3, "SPEED UP!", "#FFCC00", true, 60));
             }
