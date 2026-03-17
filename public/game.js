@@ -354,6 +354,9 @@ let floatTexts = [];
 let nextObstacleTimer = 0;
 let nextFruitTimer = 0;
 let groundDots = [];
+let stars = [];
+let farSkyline = [];
+let nearSkyline = [];
 let isRestarting = false;
 let gameOverTime = 0;
 
@@ -364,6 +367,75 @@ function initGround() {
             x: Math.random() * canvas.width,
             y: GROUND_Y + Math.random() * (canvas.height - GROUND_Y)
         });
+    }
+
+    stars = [];
+    for(let i=0; i<40; i++) {
+        stars.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * GROUND_Y,
+            size: Math.random() > 0.8 ? 4 : 2
+        });
+    }
+
+    farSkyline = [];
+    let cx = 0;
+    while(cx < canvas.width * 2) {
+        let w = 40 + Math.random() * 80;
+        let h = 80 + Math.random() * 120;
+        farSkyline.push({x: cx, w: w, h: h});
+        cx += w + Math.random() * 10;
+    }
+
+    nearSkyline = [];
+    cx = 0;
+    while(cx < canvas.width * 2) {
+        let w = 30 + Math.random() * 60;
+        let h = 30 + Math.random() * 60;
+        nearSkyline.push({x: cx, w: w, h: h});
+        cx += w + Math.random() * 20;
+    }
+}
+
+function drawParallax() {
+    // Stars
+    ctx.fillStyle = '#3a3a3a';
+    for(let s of stars) {
+        if(isPlaying) s.x -= gameSpeed * 0.1;
+        if(s.x + s.size < 0) {
+            s.x = canvas.width;
+            s.y = Math.random() * GROUND_Y;
+        }
+        ctx.fillRect(s.x, s.y, s.size, s.size);
+    }
+
+    // Far Skyline
+    ctx.fillStyle = '#2a2a2a';
+    for(let i = 0; i < farSkyline.length; i++) {
+        let b = farSkyline[i];
+        if(isPlaying) b.x -= gameSpeed * 0.25;
+        
+        // Wrap around
+        if(b.x + b.w < 0) {
+            let lastX = Math.max(...farSkyline.map(f => f.x + f.w));
+            b.x = Math.max(canvas.width, lastX) + Math.random() * 10;
+            b.h = 80 + Math.random() * 120;
+        }
+        ctx.fillRect(b.x, GROUND_Y - b.h, b.w, b.h);
+    }
+
+    // Near Skyline
+    ctx.fillStyle = '#333333';
+    for(let i = 0; i < nearSkyline.length; i++) {
+        let b = nearSkyline[i];
+        if(isPlaying) b.x -= gameSpeed * 0.5;
+        
+        if(b.x + b.w < 0) {
+            let lastX = Math.max(...nearSkyline.map(f => f.x + f.w));
+            b.x = Math.max(canvas.width, lastX) + Math.random() * 20;
+            b.h = 30 + Math.random() * 60;
+        }
+        ctx.fillRect(b.x, GROUND_Y - b.h, b.w, b.h);
     }
 }
 
@@ -542,6 +614,8 @@ function loop() {
     
     ctx.fillStyle = COLOR_BG;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    drawParallax();
     
     if (isPlaying) {
         frameCount++;
