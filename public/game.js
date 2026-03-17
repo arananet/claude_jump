@@ -51,7 +51,8 @@ const COLOR_CLAUDE = '#D46B4E';
 const COLOR_BUG = '#e54343'; 
 const COLOR_GROUND = '#555555';
 const COLOR_CLAUDE_EYE = '#000000';
-const COLOR_FRUIT_BODY = '#ff3366';
+const COLOR_APPLE = '#ff3366';
+const COLOR_BERRY = '#33ccff';
 const COLOR_FRUIT_LEAF = '#33cc66';
 
 // Handle resizing
@@ -128,7 +129,7 @@ const fruitMap = [
     "  6666  "
 ];
 
-function drawSprite(x, y, map, defaultColor) {
+function drawSprite(x, y, map, overrideColor = null) {
     for (let r = 0; r < map.length; r++) {
         for (let c = 0; c < map[r].length; c++) {
             let char = map[r][c];
@@ -138,11 +139,46 @@ function drawSprite(x, y, map, defaultColor) {
             else if (char === '3') ctx.fillStyle = COLOR_CLAUDE_EYE;
             else if (char === '4') ctx.fillStyle = COLOR_BUG;
             else if (char === '5') ctx.fillStyle = COLOR_FRUIT_LEAF;
-            else if (char === '6') ctx.fillStyle = COLOR_FRUIT_BODY;
-            else ctx.fillStyle = defaultColor;
+            else if (char === '6') ctx.fillStyle = overrideColor;
             
             ctx.fillRect(x + c * PIXEL_SIZE, y + r * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
         }
+    }
+}
+
+// --- Effects ---
+class FloatingText {
+    constructor(x, y, text, color, isStatic = false, duration = 60) {
+        this.x = x;
+        this.y = y;
+        this.text = text;
+        this.color = color;
+        this.isStatic = isStatic;
+        this.maxDuration = duration;
+        this.duration = duration;
+    }
+    update() {
+        this.duration--;
+        if (!this.isStatic) this.y -= 1;
+    }
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, this.duration / this.maxDuration);
+        ctx.fillStyle = this.color;
+        ctx.textAlign = 'center';
+        
+        if (this.isStatic) {
+            ctx.font = '24px "Press Start 2P", Courier';
+            // Subtle pulse for static text
+            let scale = 1 + Math.sin(frameCount * 0.2) * 0.05;
+            ctx.translate(canvas.width / 2, this.y);
+            ctx.scale(scale, scale);
+            ctx.fillText(this.text, 0, 0);
+        } else {
+            ctx.font = '14px "Press Start 2P", Courier';
+            ctx.fillText(this.text, this.x + 20, this.y);
+        }
+        ctx.restore();
     }
 }
 
@@ -174,7 +210,6 @@ class Player {
         let overHole = false;
         for (let obs of obstacles) {
             if (obs.type === 'hole') {
-                // To fall, center of mass must be in the hole
                 let pLeft = this.x + PIXEL_SIZE * 3;
                 let pRight = this.x + this.width - PIXEL_SIZE * 3;
                 if (pLeft > obs.x && pRight < obs.x + obs.width) {
@@ -206,7 +241,7 @@ class Player {
                 currentMap = claudeFrame2;
             }
         }
-        drawSprite(this.x, this.y, currentMap, COLOR_CLAUDE);
+        drawSprite(this.x, this.y, currentMap);
     }
     
     getHitbox() {
@@ -232,18 +267,25 @@ class Obstacle {
         } else if (this.type === 'fly') {
             this.width = 8 * PIXEL_SIZE;
             this.height = 4 * PIXEL_SIZE;
-            // High or low fly
             let isHigh = Math.random() > 0.5;
-            this.y = isHigh ? GROUND_Y - this.height - 45 : GROUND_Y - this.height - 15;
+            this.baseY = isHigh ? GROUND_Y - this.height - 50 : GROUND_Y - this.height - 20;
+            this.y = this.baseY;
+            this.bounceOffset = Math.random() * Math.PI * 2;
         } else if (this.type === 'hole') {
-            this.width = 20 * PIXEL_SIZE + Math.random() * 20 * PIXEL_SIZE; // Variable hole size
-            this.height = 0; // Handled in ground rendering
+            this.width = 20 * PIXEL_SIZE + Math.random() * 20 * PIXEL_SIZE;
+            this.height = 0; 
             this.y = GROUND_Y;
         }
     }
 
     update() {
         this.x -= gameSpeed;
+        
+        // Bouncing logic for flying bugs
+        if (this.type === 'fly') {
+            this.y = this.baseY + Math.sin(frameCount * 0.1 + this.bounceOffset) * 15;
+        }
+        
         if (this.x + this.width < 0) {
             this.markedForDeletion = true;
         }
@@ -252,15 +294,15 @@ class Obstacle {
     draw() {
         if (this.type === 'bug') {
             let offsetY = (frameCount % 16 < 8) ? -2 : 0;
-            drawSprite(this.x, this.y + offsetY, bugMap, COLOR_BUG);
+            drawSprite(this.x, this.y + offsetY, bugMap);
         } else if (this.type === 'fly') {
             let flyMap = (frameCount % 12 < 6) ? flyMap1 : flyMap2;
-            drawSprite(this.x, this.y, flyMap, COLOR_BUG);
+            drawSprite(this.x, this.y, flyMap);
         }
     }
 
     getHitbox() {
-        if (this.type === 'hole') return { x:-1000, y:-1000, w:0, h:0 }; // Holes handled via gravity
+        if (this.type === 'hole') return { x:-1000, y:-1000, w:0, h:0 }; 
         return {
             x: this.x + PIXEL_SIZE,
             y: this.y + PIXEL_SIZE,
@@ -271,11 +313,11 @@ class Obstacle {
 }
 
 class Collectible {
-    constructor() {
+    constructor(type) {
+        this.type = type; // 'apple' (+50 score) or 'berry' (slow down)
         this.width = 8 * PIXEL_SIZE;
         this.height = 5 * PIXEL_SIZE;
         this.x = canvas.width;
-        // Spawn high or low
         this.y = Math.random() > 0.5 ? GROUND_Y - this.height - 40 : GROUND_Y - this.height - 10;
         this.markedForDeletion = false;
         this.hoverOffset = Math.random() * Math.PI * 2;
@@ -288,7 +330,8 @@ class Collectible {
 
     draw() {
         let yOffset = Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
-        drawSprite(this.x, this.y + yOffset, fruitMap, COLOR_FRUIT_BODY);
+        let color = this.type === 'apple' ? COLOR_APPLE : COLOR_BERRY;
+        drawSprite(this.x, this.y + yOffset, fruitMap, color);
     }
 
     getHitbox() {
@@ -300,6 +343,7 @@ class Collectible {
 let player;
 let obstacles = [];
 let collectibles = [];
+let floatTexts = [];
 let nextObstacleTimer = 0;
 let nextFruitTimer = 0;
 let groundDots = [];
@@ -330,36 +374,12 @@ function updateGround() {
         ctx.fillRect(dot.x, dot.y, 2, 2);
     }
 
-    // Mask out the ground line and dots where holes are
     for(let obs of obstacles) {
         if (obs.type === 'hole') {
             ctx.fillStyle = COLOR_BG;
             ctx.fillRect(obs.x, GROUND_Y, obs.width, canvas.height - GROUND_Y);
         }
     }
-}
-
-// --- Core Logic ---
-function resetGame() {
-    player = new Player();
-    obstacles = [];
-    collectibles = [];
-    score = 0;
-    gameSpeed = Math.min(canvas.width / 100, 6); 
-    frameCount = 0;
-    nextObstacleTimer = 60;
-    nextFruitTimer = 120;
-    
-    isPlaying = true;
-    isGameOver = false;
-    
-    bgm.playbackRate = 1.0;
-    bgm.currentTime = 0;
-    bgm.play().catch(e => {});
-    
-    startScreen.classList.add('hidden');
-    gameOverScreen.classList.add('hidden');
-    updateScore();
 }
 
 function renderLeaderboard() {
@@ -378,6 +398,30 @@ function renderLeaderboard() {
 
 function updateScore() {
     scoreDisplay.innerHTML = `SCORE: ${Math.floor(score).toString().padStart(5, '0')} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
+}
+
+// --- Core Logic ---
+function resetGame() {
+    player = new Player();
+    obstacles = [];
+    collectibles = [];
+    floatTexts = [];
+    score = 0;
+    gameSpeed = Math.min(canvas.width / 100, 6); 
+    frameCount = 0;
+    nextObstacleTimer = 60;
+    nextFruitTimer = 120;
+    
+    isPlaying = true;
+    isGameOver = false;
+    
+    bgm.playbackRate = 1.0;
+    bgm.currentTime = 0;
+    bgm.play().catch(e => {});
+    
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    updateScore();
 }
 
 function checkCollision(rect1, rect2) {
@@ -448,7 +492,6 @@ function handleInput() {
     } else if (isPlaying) {
         player.jump();
     } else if (isGameOver) {
-        // Direct click without setTimeout to ensure browser allows audio playback on restart
         if (Date.now() - gameOverTime > 500) {
             resetGame();
         }
@@ -486,8 +529,8 @@ function loop() {
             let type = 'bug';
             let r = Math.random();
             if (score > 150) {
-                if (r > 0.7) type = 'fly';
-                else if (r > 0.4) type = 'hole';
+                if (r > 0.6) type = 'fly';
+                else if (r > 0.3) type = 'hole';
             } else if (score > 50) {
                 if (r > 0.6) type = 'hole';
             }
@@ -499,11 +542,13 @@ function loop() {
             nextObstacleTimer = Math.floor(Math.random() * (maxTimer - minTimer + 1) + minTimer);
         }
 
-        // Spawn Fruits
+        // Spawn Fruits (more frequently)
         nextFruitTimer--;
         if (nextFruitTimer <= 0) {
-            collectibles.push(new Collectible());
-            nextFruitTimer = Math.floor(Math.random() * 100 + 100);
+            // 20% chance for a berry, 80% for an apple
+            let fType = Math.random() > 0.8 ? 'berry' : 'apple';
+            collectibles.push(new Collectible(fType));
+            nextFruitTimer = Math.floor(Math.random() * 80 + 80); // Spawn faster
         }
         
         player.update();
@@ -527,9 +572,19 @@ function loop() {
             let c = collectibles[i];
             c.update();
             if (checkCollision(player.getHitbox(), c.getHitbox())) {
-                score += 50; // Bonus score
                 collectSfx.currentTime = 0;
                 collectSfx.play().catch(e => {});
+                
+                if (c.type === 'apple') {
+                    score += 50;
+                    floatTexts.push(new FloatingText(c.x, c.y, "+50", COLOR_APPLE));
+                } else if (c.type === 'berry') {
+                    score += 100;
+                    gameSpeed = Math.max(5, gameSpeed - 1.5); // Slow down the game!
+                    bgm.playbackRate = Math.max(1.0, bgm.playbackRate - 0.1);
+                    floatTexts.push(new FloatingText(0, 100, "TIME SLOW!", COLOR_BERRY, true, 80));
+                }
+                
                 collectibles.splice(i, 1);
                 updateScore();
                 continue;
@@ -537,24 +592,37 @@ function loop() {
             if (c.markedForDeletion) collectibles.splice(i, 1);
         }
         
-        score += 0.1;
-        if (frameCount % 300 === 0) { // Every ~5 seconds
-            gameSpeed += 0.3; // Gradual faster ramp
-            bgm.playbackRate = Math.min(2.0, bgm.playbackRate + 0.02); // Accelerate music slightly
+        // Floating Texts
+        for (let i = floatTexts.length - 1; i >= 0; i--) {
+            floatTexts[i].update();
+            if (floatTexts[i].duration <= 0) floatTexts.splice(i, 1);
         }
         
-        if (frameCount % 10 === 0) {
-            updateScore();
+        score += 0.1;
+        
+        // Ramp up and show SPEED UP!
+        if (frameCount % 300 === 0) {
+            gameSpeed += 0.3;
+            bgm.playbackRate = Math.min(2.0, bgm.playbackRate + 0.02);
+            if (frameCount > 300) {
+                // Flash message in center
+                floatTexts.push(new FloatingText(0, canvas.height/3, "SPEED UP!", "#FFCC00", true, 60));
+            }
         }
+        
+        if (frameCount % 10 === 0) updateScore();
     }
 
-    updateGround(); // Erases ground for holes
+    updateGround();
     if (player) player.draw();
     for (let obs of obstacles) {
         obs.draw();
     }
     for (let c of collectibles) {
         c.draw();
+    }
+    for (let ft of floatTexts) {
+        ft.draw();
     }
 }
 
