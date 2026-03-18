@@ -70,9 +70,12 @@ const COLOR_FRUIT_LEAF = '#33cc66';
 
 // Memes
 const DEATH_MEMES = [
-    "429 TOO MANY REQUESTS", "TOKEN LIMIT EXCEEDED", "CONTEXT WINDOW FULL", 
-    "HALLUCINATION DETECTED", "FILTERED BY SAFETY", "API KEY REVOKED", 
-    "PROMPT INJECTION FATAL", "GPU OUT OF MEMORY"
+    "429 TOO MANY REQUESTS", "TOKEN LIMIT EXCEEDED", "CONTEXT WINDOW FULL",
+    "HALLUCINATION DETECTED", "FILTERED BY SAFETY", "API KEY REVOKED",
+    "PROMPT INJECTION FATAL", "GPU OUT OF MEMORY",
+    "TOOL PERMISSION DENIED", "MAX TOKENS REACHED", "CLAUDE.AI TIMEOUT",
+    "CONTEXT CORRUPTED", "BAD PROMPT DETECTED", "RATE LIMITED BY ANTHROPIC",
+    "TOOL USE REJECTED", "MISSING CLAUDE.MD"
 ];
 
 // Handle resizing
@@ -372,6 +375,27 @@ class Obstacle {
             // Spawns randomly anywhere from ground level to high up
             this.y = GROUND_Y - this.height - Math.random() * 80;
             this.speedOffset = gameSpeed * (0.5 + Math.random() * 0.5); // Move faster than standard speed
+        } else if (this.type === 'rate_limit') {
+            // Wide ground-level blocker — CLI 429 error
+            this.width = 16 * PIXEL_SIZE;
+            this.height = 8 * PIXEL_SIZE;
+            this.y = GROUND_Y - this.height;
+            this.phase = Math.random() * Math.PI * 2;
+        } else if (this.type === 'timeout') {
+            // Fast-moving airborne enemy — CLI timeout error, 2.5× speed
+            this.width = 8 * PIXEL_SIZE;
+            this.height = 8 * PIXEL_SIZE;
+            this.baseY = GROUND_Y - this.height - Math.random() * 60;
+            this.y = this.baseY;
+            this.bounceOffset = Math.random() * Math.PI * 2;
+            this.speedMult = 2.5;
+        } else if (this.type === 'hallucination') {
+            // Looks like a gold token but is lethal — fake collectible
+            this.width = 8 * PIXEL_SIZE;
+            this.height = 6 * PIXEL_SIZE;
+            this.baseY = GROUND_Y - this.height - (Math.random() > 0.5 ? 40 : 10);
+            this.y = this.baseY;
+            this.hoverOffset = Math.random() * Math.PI * 2;
         }
     }
 
@@ -388,6 +412,14 @@ class Obstacle {
                 if (this.y > GROUND_Y - this.height) this.y = GROUND_Y - this.height;
                 if (this.y < 20) this.y = 20;
             }
+        } else if (this.type === 'rate_limit') {
+            this.phase += 0.05;
+        } else if (this.type === 'timeout') {
+            // Extra speed on top of base movement — very fast
+            this.x -= activeSpeed * (this.speedMult - 1);
+            this.y = this.baseY + Math.sin(frameCount * 0.15 + this.bounceOffset) * 10;
+        } else if (this.type === 'hallucination') {
+            this.y = this.baseY + Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
         }
         if (this.x + this.width < 0) {
             this.markedForDeletion = true;
@@ -409,6 +441,56 @@ class Obstacle {
             ctx.fillRect(this.x, this.y, this.width, this.height);
             ctx.fillStyle = '#FFFFFF';
             ctx.fillRect(this.x + Math.random() * this.width/2, this.y + Math.random() * this.height/2, this.width/3, this.height/3);
+        } else if (this.type === 'rate_limit') {
+            // Pulsing red wall with "429" label — rate limiter
+            let pulse = 0.55 + Math.sin(this.phase) * 0.45;
+            ctx.fillStyle = `rgba(200, 20, 20, ${pulse})`;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillStyle = '#ff4444';
+            ctx.fillRect(this.x, this.y, this.width, 4);
+            ctx.fillRect(this.x, this.y + this.height - 4, this.width, 4);
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${PIXEL_SIZE * 3}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('429', this.x + this.width / 2, this.y + this.height * 0.65);
+            ctx.font = `${PIXEL_SIZE * 1.5}px monospace`;
+            ctx.fillStyle = '#ffaaaa';
+            ctx.fillText('RATE LIMIT', this.x + this.width / 2, this.y + this.height - 5);
+            ctx.restore();
+        } else if (this.type === 'timeout') {
+            // Orange fast-mover with speed trails — CLI timeout
+            ctx.save();
+            // Speed trails to the right (where enemy came from)
+            ctx.fillStyle = 'rgba(255, 136, 0, 0.2)';
+            for (let t = 1; t <= 5; t++) {
+                let tw = this.width * (0.75 - t * 0.1);
+                if (tw > 0) ctx.fillRect(this.x + this.width + t * 6, this.y + t, tw, this.height - t * 2);
+            }
+            ctx.fillStyle = '#ff8800';
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillStyle = '#ffcc00';
+            ctx.fillRect(this.x, this.y, this.width, 3);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${PIXEL_SIZE * 1.5}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('TIMEOUT', this.x + this.width / 2, this.y - 4);
+            ctx.font = `bold ${PIXEL_SIZE * 3}px monospace`;
+            ctx.fillText('!', this.x + this.width / 2, this.y + this.height * 0.75);
+            ctx.restore();
+        } else if (this.type === 'hallucination') {
+            // Looks like a gold token — brief purple flicker is the only tell
+            let yOffset = Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
+            let isFlicker = (Math.floor(frameCount / 6) % 10 === 0);
+            drawSprite(this.x, this.y + yOffset, fruitMap, isFlicker ? '#cc44ff' : '#FFD700');
+            if (isFlicker) {
+                ctx.save();
+                ctx.fillStyle = '#ff00ff';
+                ctx.font = `bold ${PIXEL_SIZE * 2}px monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillText('?', this.x + this.width / 2, this.y + yOffset - 2);
+                ctx.restore();
+            }
         }
     }
 
@@ -478,8 +560,7 @@ let farSkyline = [];
 let nearSkyline = [];
 let isRestarting = false;
 let gameOverTime = 0;
-let currentLevel = 3;
-    if (currentLevel === 3) initVertical();
+let currentLevel = 1;
 
 let platforms = [];
 let cameraY = 0;
@@ -487,14 +568,19 @@ let deathFloorY = 0;
 let moveLeft = false;
 let moveRight = false;
 
+const CLI_ERROR_LABELS = ['RATE LIMIT', 'TOOL DENIED', 'CTX FULL', 'BAD PROMPT', 'PERM DENIED', 'DEPRECATED'];
+
 class Platform {
     constructor(x, y, type) {
         this.x = x;
         this.y = y;
         this.width = 60 + Math.random() * 40;
-        this.height = 10;
-        this.type = type; // 'normal', 'moving', 'enemy'
+        this.height = 12;
+        this.type = type; // 'normal', 'moving', 'enemy', 'boost'
         this.vx = (Math.random() > 0.5 ? 1 : -1) * (1 + Math.random() * 2);
+        this.label = type === 'enemy'
+            ? CLI_ERROR_LABELS[Math.floor(Math.random() * CLI_ERROR_LABELS.length)]
+            : null;
     }
     update() {
         if (this.type === 'moving' || this.type === 'enemy') {
@@ -505,13 +591,40 @@ class Platform {
         }
     }
     draw() {
-        ctx.fillStyle = this.type === 'enemy' ? '#ff0000' : '#4d004d';
-        ctx.fillRect(this.x, this.y - cameraY, this.width, this.height);
-        ctx.fillStyle = this.type === 'enemy' ? '#ff3333' : '#ff00ff';
-        ctx.fillRect(this.x, this.y - cameraY, this.width, 3);
-        
+        let sy = this.y - cameraY;
         if (this.type === 'enemy') {
-            drawSprite(this.x + this.width/2 - 16, this.y - 28 - cameraY, bugMap);
+            ctx.fillStyle = '#550000';
+            ctx.fillRect(this.x, sy, this.width, this.height);
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(this.x, sy, this.width, 3);
+            ctx.save();
+            ctx.fillStyle = '#ff6666';
+            ctx.font = `${PIXEL_SIZE * 1.5}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText(this.label || 'ERROR', this.x + this.width / 2, sy - 5);
+            ctx.restore();
+        } else if (this.type === 'boost') {
+            ctx.fillStyle = '#003300';
+            ctx.fillRect(this.x, sy, this.width, this.height);
+            ctx.fillStyle = '#00ff66';
+            ctx.fillRect(this.x, sy, this.width, 3);
+            ctx.save();
+            ctx.fillStyle = '#00ff66';
+            ctx.font = `${PIXEL_SIZE * 1.5}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillText('GPU BOOST', this.x + this.width / 2, sy - 5);
+            ctx.restore();
+        } else if (this.type === 'moving') {
+            ctx.fillStyle = '#2d0045';
+            ctx.fillRect(this.x, sy, this.width, this.height);
+            ctx.fillStyle = '#9900cc';
+            ctx.fillRect(this.x, sy, this.width, 3);
+        } else {
+            // normal
+            ctx.fillStyle = '#001a33';
+            ctx.fillRect(this.x, sy, this.width, this.height);
+            ctx.fillStyle = '#0055cc';
+            ctx.fillRect(this.x, sy, this.width, 3);
         }
     }
 }
@@ -536,9 +649,11 @@ function initVertical() {
 function spawnPlatform(yPos) {
     let r = Math.random();
     let type = 'normal';
-    if (r > 0.8) type = 'enemy';
-    else if (r > 0.5) type = 'moving';
-    
+    if (r > 0.88) type = 'enemy';       // 12% — CLI error platform
+    else if (r > 0.76) type = 'boost';  // 12% — GPU boost platform
+    else if (r > 0.50) type = 'moving'; // 26% — moving platform
+    // else 50% normal
+
     platforms.push(new Platform(Math.random() * (canvas.width - 100), yPos, type));
 }
 
@@ -741,6 +856,9 @@ function resetGame() {
     nextFruitTimer = 120;
     
     currentLevel = 1;
+    platforms = [];
+    moveLeft = false;
+    moveRight = false;
     COLOR_BG = '#242424';
     COLOR_GROUND = '#555555';
     
@@ -945,10 +1063,17 @@ function updateVertical() {
                     score -= 50;
                     if (score < 0) score = 0;
                     spawnExplosion(player.x, player.y, '#ff0000');
-                    floatTexts.push(new FloatingText(player.x, player.y - cameraY, "-50 CORRUPTED!", "#ff0000"));
+                    floatTexts.push(new FloatingText(player.x, player.y - cameraY, `-50 ${p.label || 'ERROR'}!`, "#ff0000"));
                     triggerShake(10);
+                } else if (p.type === 'boost') {
+                    player.vy = JUMP_FORCE * 2.2; // Super bounce!
+                    score += 100;
+                    spawnExplosion(player.x + player.width/2, player.y + player.height, '#00ff66');
+                    floatTexts.push(new FloatingText(player.x, player.y - cameraY, "+100 GPU BOOST!", "#00ff66"));
+                    collectSfx.currentTime = 0;
+                    collectSfx.play().catch(e => {});
                 } else {
-                    spawnExplosion(player.x + player.width/2, player.y + player.height, '#ff00ff');
+                    spawnExplosion(player.x + player.width/2, player.y + player.height, '#0066ff');
                 }
             }
         }
@@ -1024,11 +1149,14 @@ function drawVertical() {
 }
 
 function loop() {
-    if (currentLevel === 3 && isPlaying) {
-        updateVertical();
-        drawVertical();
-        if (frameCount % 10 === 0) updateScore();
+    if (currentLevel === 3) {
         requestAnimationFrame(loop);
+        if (isPlaying) {
+            frameCount++;
+            updateVertical();
+        }
+        drawVertical();
+        if (isPlaying && frameCount % 10 === 0) updateScore();
         return;
     }
 
@@ -1070,13 +1198,19 @@ function loop() {
             let type = 'bug';
             let r = Math.random();
             if (currentLevel === 2) {
-                if (r > 0.7) type = 'glitch'; // Fast new enemy
-                else if (r > 0.4) type = 'fly';
-                else if (r > 0.2) type = 'hole';
+                // Level 2: full CLI chaos — all enemy types including new ones
+                if (r > 0.80) type = 'glitch';
+                else if (r > 0.64) type = 'timeout';       // Fast CLI timeout
+                else if (r > 0.50) type = 'fly';
+                else if (r > 0.37) type = 'hallucination'; // Fake gold token
+                else if (r > 0.24) type = 'hole';
+                else if (r > 0.12) type = 'rate_limit';    // Wide 429 blocker
                 else type = 'bug';
             } else if (score > 300) {
-                if (r > 0.6) type = 'fly';
-                else if (r > 0.3) type = 'hole';
+                if (r > 0.60) type = 'fly';
+                else if (r > 0.30) type = 'hole';
+                else if (r > 0.08) type = 'bug';
+                else type = 'rate_limit'; // Rare surprise in late level 1
             } else if (score > 100) {
                 if (r > 0.6) type = 'hole';
             }
@@ -1209,7 +1343,24 @@ function loop() {
             // Re-init background colors visually
             for (let c of clouds) c.speed *= 2; // Clouds move faster
         }
-        
+
+        // Level 2 → Level 3: Vertical escape mode
+        if (score >= 1500 && currentLevel === 2) {
+            currentLevel = 3;
+            obstacles = [];
+            collectibles = [];
+            initVertical();
+            // Place player on base platform
+            player.x = canvas.width / 2 - player.width / 2;
+            player.y = canvas.height - 30 - player.height;
+            player.vy = 0;
+            player.isJumping = false;
+            player.isFalling = false;
+            floatTexts.push(new FloatingText(0, canvas.height / 3, "LEVEL 3: ESCAPE THE MATRIX!", "#00FF00", true, 150, 1.3));
+            triggerShake(30);
+            bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.2);
+        }
+
         if (frameCount % 240 === 0) { 
             gameSpeed += currentLevel === 2 ? 0.6 : 0.4; // Accelerates faster in level 2
             bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.03);
