@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Claude Jump — Specs</title>
+    <style>
+        body { background: #111; color: #ccc; font-family: monospace; padding: 20px; }
+        h1 { color: #D46B4E; }
+        #output { white-space: pre; font-size: 13px; line-height: 1.6; }
+        .pass { color: #00cc66; }
+        .fail { color: #ff4444; }
+        .summary { margin-top: 20px; font-size: 16px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Claude Jump — Spec Runner</h1>
+    <div id="output"></div>
+    <script>
+        // Redirect console output to DOM
+        const out = document.getElementById('output');
+        const origLog   = console.log.bind(console);
+        const origError = console.error.bind(console);
+        const origGroup = console.group ? console.group.bind(console) : () => {};
+        const origGroupEnd = console.groupEnd ? console.groupEnd.bind(console) : () => {};
+
+        let indent = 0;
+        function appendLine(text, cls) {
+            const el = document.createElement('span');
+            el.className = cls || '';
+            el.textContent = ' '.repeat(indent * 2) + text + '\n';
+            out.appendChild(el);
+        }
+
+        console.log   = (t) => { origLog(t);   appendLine(t, t && t.startsWith('  ✓') ? 'pass' : ''); };
+        console.error = (t) => { origError(t); appendLine(t, 'fail'); };
+        console.group = (t) => { origGroup(t); appendLine('\n▶ ' + t); indent++; };
+        console.groupEnd = () => { origGroupEnd(); indent = Math.max(0, indent - 1); };
+    </script>
+    <script src="game.spec.js"></script>
+</body>
+</html>
