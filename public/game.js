@@ -58,10 +58,10 @@ const GRAVITY = 0.6;
 const JUMP_FORCE = -10;
 
 // Colors
-const COLOR_BG = '#242424';
+let COLOR_BG = '#242424';
 const COLOR_CLAUDE = '#D46B4E'; 
 const COLOR_BUG = '#e54343'; 
-const COLOR_GROUND = '#555555';
+let COLOR_GROUND = '#555555';
 const COLOR_CLAUDE_EYE = '#000000';
 const COLOR_APPLE = '#ff3366';
 const COLOR_BERRY = '#33ccff';
@@ -366,6 +366,12 @@ class Obstacle {
             this.width = 20 * PIXEL_SIZE + Math.random() * 20 * PIXEL_SIZE;
             this.height = 0; 
             this.y = GROUND_Y;
+        } else if (this.type === 'glitch') {
+            this.width = 6 * PIXEL_SIZE;
+            this.height = 6 * PIXEL_SIZE;
+            // Spawns randomly anywhere from ground level to high up
+            this.y = GROUND_Y - this.height - Math.random() * 80;
+            this.speedOffset = gameSpeed * (0.5 + Math.random() * 0.5); // Move faster than standard speed
         }
     }
 
@@ -373,6 +379,15 @@ class Obstacle {
         this.x -= gameSpeed;
         if (this.type === 'fly') {
             this.y = this.baseY + Math.sin(frameCount * 0.1 + this.bounceOffset) * 15;
+        } else if (this.type === 'glitch') {
+            this.x -= this.speedOffset; // Moves much faster across the screen horizontally
+            // Randomly jitter vertically to simulate "glitch"
+            if (frameCount % 4 === 0) {
+                this.y += (Math.random() - 0.5) * 15;
+                // constrain y
+                if (this.y > GROUND_Y - this.height) this.y = GROUND_Y - this.height;
+                if (this.y < 20) this.y = 20;
+            }
         }
         if (this.x + this.width < 0) {
             this.markedForDeletion = true;
@@ -388,6 +403,12 @@ class Obstacle {
         } else if (this.type === 'fly') {
             let flyMap = (frameCount % 12 < 6) ? flyMap1 : flyMap2;
             drawSprite(this.x, this.y, flyMap);
+        } else if (this.type === 'glitch') {
+            // Randomly draw a blocky cluster
+            ctx.fillStyle = frameCount % 2 === 0 ? '#00FF00' : '#FF00FF'; // Cyberpunk colors
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(this.x + Math.random() * this.width/2, this.y + Math.random() * this.height/2, this.width/3, this.height/3);
         }
     }
 
@@ -451,6 +472,7 @@ let farSkyline = [];
 let nearSkyline = [];
 let isRestarting = false;
 let gameOverTime = 0;
+let currentLevel = 1;
 
 function spawnExplosion(x, y, color) {
     for(let i=0; i<15; i++) {
@@ -632,6 +654,10 @@ function resetGame() {
     nextObstacleTimer = 60;
     nextFruitTimer = 120;
     
+    currentLevel = 1;
+    COLOR_BG = '#242424';
+    COLOR_GROUND = '#555555';
+    
     isPlaying = true;
     isGameOver = false;
     
@@ -771,7 +797,12 @@ function loop() {
         if (nextObstacleTimer <= 0) {
             let type = 'bug';
             let r = Math.random();
-            if (score > 300) {
+            if (currentLevel === 2) {
+                if (r > 0.7) type = 'glitch'; // Fast new enemy
+                else if (r > 0.4) type = 'fly';
+                else if (r > 0.2) type = 'hole';
+                else type = 'bug';
+            } else if (score > 300) {
                 if (r > 0.6) type = 'fly';
                 else if (r > 0.3) type = 'hole';
             } else if (score > 100) {
@@ -780,8 +811,12 @@ function loop() {
 
             obstacles.push(new Obstacle(type));
             
-            let minTimer = Math.max(40, 90 - gameSpeed * 2);
-            let maxTimer = Math.max(70, 160 - gameSpeed * 2);
+            let minTimer = Math.max(30, 90 - gameSpeed * 2.5); // Faster spawns in level 2
+            let maxTimer = Math.max(60, 160 - gameSpeed * 2.5);
+            if (currentLevel === 2) {
+                minTimer = Math.max(20, minTimer - 10);
+                maxTimer = Math.max(40, maxTimer - 20);
+            }
             nextObstacleTimer = Math.floor(Math.random() * (maxTimer - minTimer + 1) + minTimer);
         }
 
@@ -874,8 +909,21 @@ function loop() {
         
         score += 0.2;
         
+        if (score >= 10000 && currentLevel === 1) {
+            currentLevel = 2;
+            COLOR_BG = '#1a0033'; // Deep synthwave purple
+            COLOR_GROUND = '#4d004d'; // Neon pinkish dark
+            floatTexts.push(new FloatingText(0, canvas.height/3, "LEVEL 2: MAINFRAME!", "#ff00ff", true, 100, 1.5));
+            triggerShake(20);
+            gameSpeed += 2;
+            bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.1);
+            
+            // Re-init background colors visually
+            for (let c of clouds) c.speed *= 2; // Clouds move faster
+        }
+        
         if (frameCount % 240 === 0) { 
-            gameSpeed += 0.4;
+            gameSpeed += currentLevel === 2 ? 0.6 : 0.4; // Accelerates faster in level 2
             bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.03);
             if (frameCount > 240) {
                 floatTexts.push(new FloatingText(0, canvas.height/3, "SPEED UP!", "#FFCC00", true, 60));
