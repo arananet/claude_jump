@@ -1,0 +1,4 @@
+--- public/game.js
++++ public/game.js
+@@ -1,3 +1,4 @@
+ // ... (Needs manual patching for size)
