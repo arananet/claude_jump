@@ -32,13 +32,13 @@ let frameCount = 0;
 let score = 0;
 let highScores = JSON.parse(localStorage.getItem('claudeJumpScoresList')) || [];
 
-if (highScores.length === 0 || highScores.some(s => s.score < 1000)) {
+if (highScores.length === 0 || highScores.some(s => s.score < 5000)) {
     highScores = [
-        { initials: 'EDU', score: 5000 },
-        { initials: 'SDA', score: 4000 },
-        { initials: 'CLD', score: 3000 },
-        { initials: 'BOT', score: 2000 },
-        { initials: 'ANT', score: 1000 }
+        { initials: 'EDU', score: 10000 },
+        { initials: 'SDA', score: 8000 },
+        { initials: 'CLD', score: 7000 },
+        { initials: 'BOT', score: 6000 },
+        { initials: 'ANT', score: 5000 }
     ];
     localStorage.setItem('claudeJumpScoresList', JSON.stringify(highScores));
 }
@@ -661,7 +661,7 @@ function die() {
 
     let lowestHighScore = highScores.length < 5 ? 0 : highScores[highScores.length-1].score;
     
-    if (score >= 1000 && score > lowestHighScore) {
+    if (score >= 5000 && score > lowestHighScore) {
         isEnteringScore = true;
         newHighscoreBox.classList.remove('hidden');
         restartText.classList.add('hidden');
