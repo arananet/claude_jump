@@ -81,8 +81,11 @@ let lastHeight = 0;
 
 function resize() {
     let rect = canvas.parentElement.getBoundingClientRect();
-    let newW = Math.max(320, rect.width);
-    let newH = Math.max(200, rect.height);
+    let newW = rect.width;
+    let newH = rect.height;
+    
+    // Safety check - if container is mysteriously 0 height, don't break the game logic
+    if (newH < 50) return; 
     
     if (newW === lastWidth && newH === lastHeight) return;
     
