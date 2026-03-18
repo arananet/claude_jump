@@ -327,6 +327,9 @@ class Player {
             // Flash rainbow/gold when invincible
             const colors = ['#FFD700', '#FFF', '#FF3366', '#33CCFF'];
             drawColor = colors[Math.floor(frameCount / 4) % colors.length];
+        } else if (corruptionTimer > 0) {
+            // Glow angry red when corrupted
+            drawColor = '#FF0000';
         }
         
         drawSprite(this.x, this.y, currentMap, drawColor);
@@ -372,8 +375,8 @@ class Obstacle {
         }
     }
 
-    update() {
-        this.x -= gameSpeed;
+    update(activeSpeed) {
+        this.x -= activeSpeed;
         if (this.type === 'fly') {
             this.y = this.baseY + Math.sin(frameCount * 0.1 + this.bounceOffset) * 15;
         } else if (this.type === 'glitch') {
@@ -422,7 +425,7 @@ class Obstacle {
 
 class Collectible {
     constructor(type) {
-        this.type = type; // 'token', 'context', 'gpu'
+        this.type = type; // 'token', 'context', 'gpu', 'corrupted'
         this.width = 8 * PIXEL_SIZE;
         this.height = 6 * PIXEL_SIZE;
         this.x = canvas.width;
@@ -431,13 +434,21 @@ class Collectible {
         this.hoverOffset = Math.random() * Math.PI * 2;
     }
 
-    update() {
-        this.x -= gameSpeed;
+    update(activeSpeed) {
+        this.x -= activeSpeed;
         if (this.x + this.width < 0) {
             this.markedForDeletion = true;
-            combo = 0; // Reset combo if you miss a token!
-            score = Math.max(0, score - 50); // Penalty for missing a token!
-            floatTexts.push(new FloatingText(this.x, this.y, "-50 TOKENS!", "#ff3333"));
+            if (this.type !== 'corrupted' && this.type !== 'gpu' && this.type !== 'context') {
+                combo = 0; // Reset combo if you miss a normal token
+                score -= 100; // Heavy penalty for missing a token!
+                floatTexts.push(new FloatingText(this.x, this.y, "-100 TOKENS! COLLECT THEM!", "#ff3333", false, 80));
+                
+                // FATAL: Out of tokens!
+                if (score < 0) {
+                    score = 0;
+                    die();
+                }
+            }
         }
     }
 
@@ -445,6 +456,8 @@ class Collectible {
         let yOffset = Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
         if (this.type === 'gpu') {
             drawSprite(this.x, this.y + yOffset, gpuMap, COLOR_GPU);
+        } else if (this.type === 'corrupted') {
+            drawSprite(this.x, this.y + yOffset, fruitMap, '#ff0000'); // Red bad token
         } else {
             let color = this.type === 'token' ? '#FFD700' : '#33ccff';
             drawSprite(this.x, this.y + yOffset, fruitMap, color);
@@ -472,6 +485,7 @@ let nearSkyline = [];
 let isRestarting = false;
 let gameOverTime = 0;
 let currentLevel = 1;
+let corruptionTimer = 0; // Speed debuff timer
 
 function spawnExplosion(x, y, color) {
     for(let i=0; i<15; i++) {
@@ -531,10 +545,11 @@ function initGround() {
     }
 }
 
-function drawParallax() {
+function drawParallax(activeSpeed) {
+    let speed = activeSpeed || gameSpeed;
     ctx.fillStyle = '#3a3a3a';
     for(let s of stars) {
-        if(isPlaying) s.x -= gameSpeed * 0.1;
+        if(isPlaying) s.x -= speed * 0.1;
         if(s.x + s.size < 0) {
             s.x = canvas.width;
             s.y = Math.random() * GROUND_Y;
@@ -544,7 +559,7 @@ function drawParallax() {
 
     ctx.fillStyle = '#444444';
     for(let c of clouds) {
-        if(isPlaying) c.x -= gameSpeed * c.speed;
+        if(isPlaying) c.x -= speed * c.speed;
         
         if(c.x + c.w < -10) {
             c.x = canvas.width + Math.random() * 100;
@@ -562,7 +577,7 @@ function drawParallax() {
     ctx.fillStyle = '#2a2a2a';
     for(let i = 0; i < farSkyline.length; i++) {
         let b = farSkyline[i];
-        if(isPlaying) b.x -= gameSpeed * 0.25;
+        if(isPlaying) b.x -= speed * 0.25;
         
         if(b.x + b.w < 0) {
             let lastX = Math.max(...farSkyline.map(f => f.x + f.w));
@@ -575,7 +590,7 @@ function drawParallax() {
     ctx.fillStyle = '#333333';
     for(let i = 0; i < nearSkyline.length; i++) {
         let b = nearSkyline[i];
-        if(isPlaying) b.x -= gameSpeed * 0.5;
+        if(isPlaying) b.x -= speed * 0.5;
         
         if(b.x + b.w < 0) {
             let lastX = Math.max(...nearSkyline.map(f => f.x + f.w));
@@ -586,7 +601,8 @@ function drawParallax() {
     }
 }
 
-function updateGround() {
+function updateGround(activeSpeed) {
+    let speed = activeSpeed || gameSpeed;
     // Draw solid ground mass below the surface line
     ctx.fillStyle = currentLevel === 2 ? '#120024' : '#1c1c1c';
     ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
@@ -596,7 +612,7 @@ function updateGround() {
     
     for(let i=0; i<groundDots.length; i++) {
         let dot = groundDots[i];
-        dot.x -= gameSpeed * 0.8;
+        dot.x -= speed * 0.8;
         if (dot.x < 0) {
             dot.x = canvas.width;
             dot.y = GROUND_Y + Math.random() * (canvas.height - GROUND_Y);
@@ -799,6 +815,18 @@ function loop() {
         frameCount++;
         if (invincibilityTimer > 0) invincibilityTimer--;
         
+        let activeGameSpeed = gameSpeed;
+        if (corruptionTimer > 0) {
+            corruptionTimer--;
+            activeGameSpeed += 8; // CRAZY speed boost!
+            
+            // Draw horizontal speed lines randomly across screen
+            ctx.fillStyle = `rgba(255, 0, 0, ${Math.random() * 0.5})`;
+            for (let j = 0; j < 5; j++) {
+                ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 300 + 50, 2);
+            }
+        }
+        
         // Safety: If player somehow goes way above screen, bring them back or reset
         if (player.y < -100) player.y = -100;
 
@@ -836,7 +864,8 @@ function loop() {
             let r = Math.random();
             let fType = 'token';
             if (r > 0.95) fType = 'gpu'; // 5% chance for Invincibility GPU
-            else if (r > 0.75) fType = 'context'; // 20% chance for Context Expansion (Slow Time)
+            else if (r > 0.85) fType = 'context'; // 10% chance for Context Expansion
+            else if (r > 0.65) fType = 'corrupted'; // 20% chance for BAD Corrupted Token
             
             collectibles.push(new Collectible(fType));
             nextFruitTimer = Math.floor(Math.random() * 80 + 60); 
@@ -847,7 +876,7 @@ function loop() {
         // Obstacles
         for (let i = obstacles.length - 1; i >= 0; i--) {
             let obs = obstacles[i];
-            obs.update();
+            obs.update(activeGameSpeed);
             
             if (obs.type !== 'hole' && checkCollision(player.getHitbox(), obs.getHitbox())) {
                 if (invincibilityTimer > 0) {
@@ -872,8 +901,28 @@ function loop() {
         // Collectibles
         for (let i = collectibles.length - 1; i >= 0; i--) {
             let c = collectibles[i];
-            c.update();
+            c.update(activeGameSpeed);
             if (checkCollision(player.getHitbox(), c.getHitbox())) {
+                if (c.type === 'corrupted') {
+                    // Penalty!
+                    combo = 0;
+                    score -= 500;
+                    if (score < 0) {
+                        score = 0;
+                        die();
+                        continue;
+                    }
+                    corruptionTimer = 180; // 3 seconds of speed madness
+                    dieSfx.currentTime = 0;
+                    dieSfx.play().catch(e => {});
+                    triggerShake(10);
+                    spawnExplosion(c.x, c.y, '#ff0000');
+                    floatTexts.push(new FloatingText(0, 100, "CORRUPTED TOKEN!", "#ff0000", true, 80, 1.5));
+                    collectibles.splice(i, 1);
+                    updateScore();
+                    continue;
+                }
+
                 combo++;
                 let comboBonus = c.type === 'token' ? 50 * combo : 100 * combo;
                 score += comboBonus;
@@ -917,9 +966,9 @@ function loop() {
             if (floatTexts[i].duration <= 0) floatTexts.splice(i, 1);
         }
         
-        score += 0.2;
+        score += 0.05; // Passive survival score is extremely slow now. You MUST get tokens!
         
-        if (score >= 10000 && currentLevel === 1) {
+        if (score >= 5000 && currentLevel === 1) {
             currentLevel = 2;
             COLOR_BG = '#1a0033'; // Deep synthwave purple
             COLOR_GROUND = '#4d004d'; // Neon pinkish dark
