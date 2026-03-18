@@ -80,8 +80,9 @@ let lastWidth = 0;
 let lastHeight = 0;
 
 function resize() {
-    let newW = canvas.parentElement.clientWidth;
-    let newH = canvas.parentElement.clientHeight;
+    let rect = canvas.parentElement.getBoundingClientRect();
+    let newW = Math.max(320, rect.width);
+    let newH = Math.max(200, rect.height);
     
     if (newW === lastWidth && newH === lastHeight) return;
     
@@ -104,11 +105,15 @@ function resize() {
         let diff = GROUND_Y - oldGround;
         for (let d of groundDots) d.y += diff;
         for (let c of clouds) c.y += diff * 0.4;
-        if (player && !player.isFalling) {
-            // Keep grounded player on the new ground line
-            player.y = GROUND_Y - player.height;
-            player.vy = 0;
-            player.isJumping = false;
+        if (player) {
+            if (!player.isJumping && !player.isFalling) {
+                // Keep grounded player on the new ground line
+                player.y = GROUND_Y - player.height;
+                player.vy = 0;
+            } else {
+                // Adjust player height by the same diff so they don't fall off screen mid-jump
+                player.y += diff;
+            }
         }
     }
 }
