@@ -70,9 +70,9 @@ const COLOR_FRUIT_LEAF = '#33cc66';
 
 // Memes
 const DEATH_MEMES = [
-    "SYNTAX ERROR", "GIT PUSH --FORCE", "IT'S A FEATURE", 
-    "SEGMENTATION FAULT", "418 I'M A TEAPOT", "STACK OVERFLOW", 
-    "OOF.JS", "rm -rf /"
+    "429 TOO MANY REQUESTS", "TOKEN LIMIT EXCEEDED", "CONTEXT WINDOW FULL", 
+    "HALLUCINATION DETECTED", "FILTERED BY SAFETY", "API KEY REVOKED", 
+    "PROMPT INJECTION FATAL", "GPU OUT OF MEMORY"
 ];
 
 // Handle resizing
@@ -149,34 +149,31 @@ const claudeFrame2 = [
 ];
 
 const bugMap = [
-    "   4444   ",
-    "  44  44  ",
-    " 44444444 ",
-    "44 4444 44",
-    "4444444444",
-    " 44444444 ",
-    "  44  44  "
+    " 4444444 ",
+    " 4 4 4 4 ",
+    " 4444444 ",
+    " 4  4  4 ",
+    " 4444444 "
 ];
 
 const flyMap1 = [
-    "  4444  ",
-    "44 44 44",
-    " 444444 ",
-    "   44   "
+    "  44444  ",
+    " 44 4 44 ",
+    "  44444  "
 ];
 
 const flyMap2 = [
-    "   44   ",
-    "44444444",
-    " 444444 ",
-    "  4  4  "
+    " 4444444 ",
+    " 4  4  4 ",
+    " 4444444 "
 ];
 
 const fruitMap = [
-    "   55   ",
     "  6666  ",
-    " 666666 ",
-    " 666666 ",
+    " 655556 ",
+    " 656656 ",
+    " 656656 ",
+    " 655556 ",
     "  6666  "
 ];
 
@@ -425,7 +422,7 @@ class Obstacle {
 
 class Collectible {
     constructor(type) {
-        this.type = type; // 'apple', 'berry', 'gpu'
+        this.type = type; // 'token', 'context', 'gpu'
         this.width = 8 * PIXEL_SIZE;
         this.height = 6 * PIXEL_SIZE;
         this.x = canvas.width;
@@ -438,7 +435,9 @@ class Collectible {
         this.x -= gameSpeed;
         if (this.x + this.width < 0) {
             this.markedForDeletion = true;
-            combo = 0; // Reset combo if you miss a fruit!
+            combo = 0; // Reset combo if you miss a token!
+            score = Math.max(0, score - 50); // Penalty for missing a token!
+            floatTexts.push(new FloatingText(this.x, this.y, "-50 TOKENS!", "#ff3333"));
         }
     }
 
@@ -447,7 +446,7 @@ class Collectible {
         if (this.type === 'gpu') {
             drawSprite(this.x, this.y + yOffset, gpuMap, COLOR_GPU);
         } else {
-            let color = this.type === 'apple' ? COLOR_APPLE : COLOR_BERRY;
+            let color = this.type === 'token' ? '#FFD700' : '#33ccff';
             drawSprite(this.x, this.y + yOffset, fruitMap, color);
         }
     }
@@ -831,13 +830,13 @@ function loop() {
             nextObstacleTimer = Math.floor(Math.random() * (maxTimer - minTimer + 1) + minTimer);
         }
 
-        // Spawn Fruits / Collectibles
+        // Spawn Tokens / Collectibles
         nextFruitTimer--;
         if (nextFruitTimer <= 0) {
             let r = Math.random();
-            let fType = 'apple';
+            let fType = 'token';
             if (r > 0.95) fType = 'gpu'; // 5% chance for Invincibility GPU
-            else if (r > 0.75) fType = 'berry'; // 20% chance for Time-Slow Berry
+            else if (r > 0.75) fType = 'context'; // 20% chance for Context Expansion (Slow Time)
             
             collectibles.push(new Collectible(fType));
             nextFruitTimer = Math.floor(Math.random() * 80 + 60); 
@@ -870,34 +869,34 @@ function loop() {
             }
         }
 
-        // Fruits
+        // Collectibles
         for (let i = collectibles.length - 1; i >= 0; i--) {
             let c = collectibles[i];
             c.update();
             if (checkCollision(player.getHitbox(), c.getHitbox())) {
                 combo++;
-                let comboBonus = c.type === 'apple' ? 50 * combo : 100 * combo;
+                let comboBonus = c.type === 'token' ? 50 * combo : 100 * combo;
                 score += comboBonus;
                 
                 collectSfx.currentTime = 0;
                 collectSfx.play().catch(e => {});
-                spawnExplosion(c.x, c.y, c.type === 'apple' ? COLOR_APPLE : COLOR_BERRY);
+                spawnExplosion(c.x, c.y, c.type === 'token' ? '#FFD700' : '#33ccff');
                 
-                if (c.type === 'apple') {
-                    floatTexts.push(new FloatingText(c.x, c.y, `+${comboBonus}`, COLOR_APPLE));
-                } else if (c.type === 'berry') {
+                if (c.type === 'token') {
+                    floatTexts.push(new FloatingText(c.x, c.y, `+${comboBonus} TKNS`, '#FFD700'));
+                } else if (c.type === 'context') {
                     gameSpeed = Math.max(6, gameSpeed - 2.0); 
                     bgm.playbackRate = Math.max(1.0, bgm.playbackRate - 0.2);
-                    floatTexts.push(new FloatingText(0, 100, "TIME SLOW!", COLOR_BERRY, true, 80, 1.5));
+                    floatTexts.push(new FloatingText(0, 100, "CONTEXT EXPANDED!", '#33ccff', true, 80, 1.2));
                 } else if (c.type === 'gpu') {
                     invincibilityTimer = 400; // ~6.5 seconds of invincibility
                     floatTexts.push(new FloatingText(0, 100, "AGI MODE!", COLOR_GPU, true, 100, 1.5));
                 }
                 
                 // Combo Memes
-                if (combo === 3) floatTexts.push(new FloatingText(0, 140, "OPTIMIZED!", "#FFF", true, 60));
-                if (combo === 5) floatTexts.push(new FloatingText(0, 140, "STONKS \uD83D\uDCC8", "#00FF00", true, 80));
-                if (combo === 10) floatTexts.push(new FloatingText(0, 140, "100x ENGINEER!", "#FFD700", true, 100, 1.5));
+                if (combo === 3) floatTexts.push(new FloatingText(0, 140, "FEW SHOT!", "#FFF", true, 60));
+                if (combo === 5) floatTexts.push(new FloatingText(0, 140, "ZERO SHOT!", "#00FF00", true, 80));
+                if (combo === 10) floatTexts.push(new FloatingText(0, 140, "CHAIN OF THOUGHT!", "#FFD700", true, 100, 1.2));
                 
                 collectibles.splice(i, 1);
                 updateScore();
@@ -924,7 +923,7 @@ function loop() {
             currentLevel = 2;
             COLOR_BG = '#1a0033'; // Deep synthwave purple
             COLOR_GROUND = '#4d004d'; // Neon pinkish dark
-            floatTexts.push(new FloatingText(0, canvas.height/3, "LEVEL 2: MAINFRAME!", "#ff00ff", true, 100, 1.5));
+            floatTexts.push(new FloatingText(0, canvas.height/3, "LEVEL 2: WEIGHTS CORRUPTED!", "#ff00ff", true, 100, 1.2));
             triggerShake(20);
             gameSpeed += 2;
             bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.1);
