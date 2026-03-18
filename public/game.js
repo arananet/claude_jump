@@ -608,8 +608,8 @@ function updateGround() {
 
     for(let obs of obstacles) {
         if (obs.type === 'hole') {
-            // Draw the pitch black abyss
-            ctx.fillStyle = currentLevel === 2 ? '#050010' : '#050505';
+            // Draw the pitch black abyss cutting through the dirt
+            ctx.fillStyle = currentLevel === 2 ? '#050010' : '#000000';
             ctx.fillRect(obs.x, GROUND_Y, obs.width, canvas.height - GROUND_Y);
             
             // Draw hole walls for 3D depth effect
