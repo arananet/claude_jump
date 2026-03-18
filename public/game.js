@@ -442,12 +442,6 @@ class Collectible {
                 combo = 0; // Reset combo if you miss a normal token
                 score -= 100; // Heavy penalty for missing a token!
                 floatTexts.push(new FloatingText(this.x, this.y, "-100 TOKENS! COLLECT THEM!", "#ff3333", false, 80));
-                
-                // FATAL: Out of tokens!
-                if (score < 0) {
-                    score = 0;
-                    die();
-                }
             }
         }
     }
@@ -651,7 +645,9 @@ function renderLeaderboard() {
 
 function updateScore() {
     let comboStr = combo > 1 ? ` &nbsp; <span style="color:#FFD700">x${combo}</span>` : '';
-    scoreDisplay.innerHTML = `TOKENS: ${Math.floor(score).toString().padStart(5, '0')}${comboStr} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
+    let sign = score < 0 ? "-" : "";
+    let absScore = Math.abs(Math.floor(score)).toString().padStart(5, '0');
+    scoreDisplay.innerHTML = `TOKENS: ${sign}${absScore}${comboStr} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
 }
 
 function checkCollision(r1, r2) {
@@ -674,6 +670,7 @@ function resetGame() {
     score = 0;
     combo = 0;
     invincibilityTimer = 0;
+    corruptionTimer = 0;
     shakeTime = 0;
     gameSpeed = Math.min(canvas.width / 80, 8.5); 
     frameCount = 0;
@@ -907,11 +904,6 @@ function loop() {
                     // Penalty!
                     combo = 0;
                     score -= 500;
-                    if (score < 0) {
-                        score = 0;
-                        die();
-                        continue;
-                    }
                     corruptionTimer = 180; // 3 seconds of speed madness
                     dieSfx.currentTime = 0;
                     dieSfx.play().catch(e => {});
