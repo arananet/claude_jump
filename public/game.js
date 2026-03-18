@@ -606,6 +606,16 @@ function updateScore() {
     scoreDisplay.innerHTML = `SCORE: ${Math.floor(score).toString().padStart(5, '0')}${comboStr} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
 }
 
+function checkCollision(r1, r2) {
+    if (!r1 || !r2) return false;
+    return !(
+        r2.x > r1.x + r1.w || 
+        r2.x + r2.w < r1.x || 
+        r2.y > r1.y + r1.h ||
+        r2.y + r2.h < r1.y
+    );
+}
+
 // --- Core Logic ---
 function resetGame() {
     player = new Player();
