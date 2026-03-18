@@ -635,7 +635,7 @@ function renderLeaderboard() {
 
 function updateScore() {
     let comboStr = combo > 1 ? ` &nbsp; <span style="color:#FFD700">x${combo}</span>` : '';
-    scoreDisplay.innerHTML = `SCORE: ${Math.floor(score).toString().padStart(5, '0')}${comboStr} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
+    scoreDisplay.innerHTML = `TOKENS: ${Math.floor(score).toString().padStart(5, '0')}${comboStr} &nbsp;&nbsp; HI: ${Math.floor(topScore).toString().padStart(5, '0')}`;
 }
 
 function checkCollision(r1, r2) {
