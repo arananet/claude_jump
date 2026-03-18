@@ -84,8 +84,8 @@ function resize() {
     let newW = rect.width;
     let newH = rect.height;
     
-    // Safety check - if container is mysteriously 0 height, don't break the game logic
-    if (newH < 50) return; 
+    // Safety check - if container is mysteriously small, don't break the game logic
+    if (newH < 50 || newW < 50) return; 
     
     if (newW === lastWidth && newH === lastHeight) return;
     
@@ -94,7 +94,6 @@ function resize() {
         return; 
     }
     
-    let oldGround = GROUND_Y;
     lastWidth = newW;
     lastHeight = newH;
     
@@ -102,20 +101,18 @@ function resize() {
     canvas.height = newH;
     GROUND_Y = canvas.height - Math.max(40, canvas.height * 0.15);
     
-    if (!groundDots || groundDots.length === 0) {
-        initGround();
-    } else {
-        let diff = GROUND_Y - oldGround;
-        for (let d of groundDots) d.y += diff;
-        for (let c of clouds) c.y += diff * 0.4;
-        if (player) {
-            if (!player.isJumping && !player.isFalling) {
-                // Keep grounded player on the new ground line
+    // Always do a clean initialization on resize to prevent coordinate corruption
+    initGround();
+    
+    if (player) {
+        if (!player.isJumping && !player.isFalling) {
+            // Keep grounded player on the new ground line
+            player.y = GROUND_Y - player.height;
+            player.vy = 0;
+        } else {
+            // Mid-air safety net so player doesn't clip through the new ground
+            if (player.y > GROUND_Y - player.height) {
                 player.y = GROUND_Y - player.height;
-                player.vy = 0;
-            } else {
-                // Adjust player height by the same diff so they don't fall off screen mid-jump
-                player.y += diff;
             }
         }
     }

@@ -5,29 +5,25 @@
     font-family: 'Press Start 2P', monospace;
     user-select: none;
     -webkit-user-select: none;
+    touch-action: none; /* Prevent scroll/zoom on mobile taps */
 }
 
-body {
+body, html {
+    width: 100%;
+    height: 100%;
     background-color: #1a1a1a;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
     overflow: hidden;
     color: #e5e5e5;
 }
 
 #game-container {
-    position: relative;
-    width: 100%;
-    max-width: 800px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
     height: 100vh;
-    max-height: 500px;
     background-color: #242424;
-    border: 4px solid #333;
-    border-radius: 8px;
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
 }
 
 canvas {
@@ -67,6 +63,7 @@ canvas {
     align-items: center;
     background-color: rgba(36, 36, 36, 0.85);
     transition: opacity 0.3s;
+    pointer-events: auto;
 }
 
 .screen.hidden {
@@ -96,13 +93,6 @@ p {
 }
 
 @media (max-width: 600px) {
-    #game-container {
-        border: none;
-        border-radius: 0;
-        height: 100vh;
-        width: 100vw;
-        max-height: 100vh;
-    }
     h1 { font-size: 20px; }
     p { font-size: 10px; }
     #score-display { top: 20px; right: 10px; font-size: 10px; }
