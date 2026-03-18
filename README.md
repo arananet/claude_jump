@@ -42,7 +42,7 @@ We built this for the devs. Keep an eye out for these hidden touches:
 ## 🏆 Leaderboard
 
 Local high scores are saved to your browser! 
-*Note: To prove you aren't a bot, you must reach a minimum score of **5000** and beat the lowest entry on the board to save your initials.*
+*Note: To prove you aren't a bot, you must reach a minimum score of **500** and beat the lowest entry on the board to save your initials.*
 
 ## ⚠️ Disclaimer
 

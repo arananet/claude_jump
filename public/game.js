@@ -32,13 +32,13 @@ let frameCount = 0;
 let score = 0;
 let highScores = JSON.parse(localStorage.getItem('claudeJumpScoresList')) || [];
 
-if (highScores.length === 0 || highScores.some(s => s.score < 5000)) {
+if (highScores.length === 0 || highScores.some(s => s.score < 500)) {
     highScores = [
-        { initials: 'EDU', score: 10000 },
-        { initials: 'SDA', score: 8000 },
-        { initials: 'CLD', score: 7000 },
-        { initials: 'BOT', score: 6000 },
-        { initials: 'ANT', score: 5000 }
+        { initials: 'EDU', score: 1000 },
+        { initials: 'SDA', score: 800 },
+        { initials: 'CLD', score: 700 },
+        { initials: 'BOT', score: 600 },
+        { initials: 'ANT', score: 500 }
     ];
     localStorage.setItem('claudeJumpScoresList', JSON.stringify(highScores));
 }
@@ -710,7 +710,7 @@ function die() {
 
     let lowestHighScore = highScores.length < 5 ? 0 : highScores[highScores.length-1].score;
     
-    if (score >= 5000 && score > lowestHighScore) {
+    if (score >= 500 && score > lowestHighScore) {
         isEnteringScore = true;
         newHighscoreBox.classList.remove('hidden');
         restartText.classList.add('hidden');
@@ -960,7 +960,7 @@ function loop() {
         
         score += 0.05; // Passive survival score is extremely slow now. You MUST get tokens!
         
-        if (score >= 5000 && currentLevel === 1) {
+        if (score >= 500 && currentLevel === 1) {
             currentLevel = 2;
             COLOR_BG = '#1a0033'; // Deep synthwave purple
             COLOR_GROUND = '#4d004d'; // Neon pinkish dark
