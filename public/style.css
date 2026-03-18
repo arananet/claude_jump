@@ -21,7 +21,8 @@ body {
     position: relative;
     width: 100%;
     max-width: 800px;
-    aspect-ratio: 8 / 3;
+    height: 100vh;
+    max-height: 300px;
     background-color: #242424;
     border: 4px solid #333;
     border-radius: 8px;
@@ -98,9 +99,8 @@ p {
     #game-container {
         border: none;
         border-radius: 0;
-        width: 100vw;
-        aspect-ratio: auto;
-        height: 50vh;
+        max-height: 100vh;
+        height: 100vh;
     }
     h1 { font-size: 20px; }
     p { font-size: 10px; }
