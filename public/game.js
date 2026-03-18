@@ -588,6 +588,10 @@ function drawParallax() {
 }
 
 function updateGround() {
+    // Draw solid ground mass below the surface line
+    ctx.fillStyle = currentLevel === 2 ? '#120024' : '#1c1c1c';
+    ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+
     ctx.fillStyle = COLOR_GROUND;
     ctx.fillRect(0, GROUND_Y, canvas.width, 2);
     
@@ -598,13 +602,20 @@ function updateGround() {
             dot.x = canvas.width;
             dot.y = GROUND_Y + Math.random() * (canvas.height - GROUND_Y);
         }
+        ctx.fillStyle = COLOR_GROUND;
         ctx.fillRect(dot.x, dot.y, 2, 2);
     }
 
     for(let obs of obstacles) {
         if (obs.type === 'hole') {
-            ctx.fillStyle = COLOR_BG;
+            // Draw the pitch black abyss
+            ctx.fillStyle = currentLevel === 2 ? '#050010' : '#050505';
             ctx.fillRect(obs.x, GROUND_Y, obs.width, canvas.height - GROUND_Y);
+            
+            // Draw hole walls for 3D depth effect
+            ctx.fillStyle = currentLevel === 2 ? '#2a002a' : '#111111';
+            ctx.fillRect(obs.x, GROUND_Y, 4, canvas.height - GROUND_Y); // left wall
+            ctx.fillRect(obs.x + obs.width - 4, GROUND_Y, 4, canvas.height - GROUND_Y); // right wall
         }
     }
 }
