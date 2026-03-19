@@ -902,14 +902,62 @@ function updateGround(activeSpeed) {
 
     for(let obs of obstacles) {
         if (obs.type === 'hole') {
-            // Draw the pitch black abyss cutting through the dirt
-            ctx.fillStyle = currentLevel === 2 ? '#050010' : '#000000';
-            ctx.fillRect(obs.x, GROUND_Y, obs.width, canvas.height - GROUND_Y);
-            
-            // Draw hole walls for 3D depth effect
-            ctx.fillStyle = currentLevel === 2 ? '#2a002a' : '#111111';
-            ctx.fillRect(obs.x, GROUND_Y, 4, canvas.height - GROUND_Y); // left wall
-            ctx.fillRect(obs.x + obs.width - 4, GROUND_Y, 4, canvas.height - GROUND_Y); // right wall
+            let hx = obs.x, hy = GROUND_Y, hw = obs.width, hh = canvas.height - GROUND_Y;
+            let isL2 = currentLevel === 2;
+
+            // Abyss fill — semi-transparent so ground colour bleeds through
+            ctx.fillStyle = isL2 ? 'rgba(5,0,16,0.82)' : 'rgba(10,8,8,0.80)';
+            ctx.fillRect(hx, hy, hw, hh);
+
+            // Faint depth gradient overlay (darker toward bottom)
+            let grad = ctx.createLinearGradient(hx, hy, hx, hy + hh);
+            grad.addColorStop(0,   isL2 ? 'rgba(60,0,80,0.18)' : 'rgba(40,28,20,0.18)');
+            grad.addColorStop(1,   'rgba(0,0,0,0.55)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(hx, hy, hw, hh);
+
+            // Rock / rubble colour palette
+            let rockBase  = isL2 ? '#1e0030' : '#2a211a';
+            let rockLight = isL2 ? '#3a0050' : '#4a3828';
+            let rockDark  = isL2 ? '#0d0018' : '#140d08';
+
+            // Left crumbling wall
+            ctx.fillStyle = rockLight;
+            ctx.fillRect(hx, hy, 5, hh);
+            ctx.fillStyle = rockBase;
+            ctx.fillRect(hx + 5, hy, 3, hh);
+
+            // Right crumbling wall
+            ctx.fillStyle = rockLight;
+            ctx.fillRect(hx + hw - 5, hy, 5, hh);
+            ctx.fillStyle = rockBase;
+            ctx.fillRect(hx + hw - 8, hy, 3, hh);
+
+            // Stalactites hanging from the rim — pixel-art spikes
+            ctx.save();
+            let seed = Math.floor(hx / 4); // stable per hole (doesn't flicker)
+            let spikeW = 6, gap = 10;
+            for (let sx = hx + 4; sx < hx + hw - 4; sx += spikeW + gap) {
+                // pseudo-random height using cheap hash
+                let ph = (((seed ^ (sx * 7)) * 2654435761) >>> 0) % 14 + 8;
+                // alternate light/dark
+                let col = (Math.floor(sx / 4) % 2 === 0) ? rockLight : rockBase;
+                ctx.fillStyle = col;
+                ctx.fillRect(sx, hy, spikeW, ph);
+                // dark tip
+                ctx.fillStyle = rockDark;
+                ctx.fillRect(sx + 1, hy + ph - 3, spikeW - 2, 3);
+            }
+
+            // Scattered rubble pebbles on the upper ledge
+            ctx.fillStyle = rockLight;
+            let pebbleSeed = seed + 99;
+            for (let p = 0; p < 5; p++) {
+                let px2 = hx + (((pebbleSeed * (p + 1) * 1664525) >>> 0) % Math.max(1, hw - 12)) + 6;
+                let py2 = hy + 2 + (((pebbleSeed * (p + 3) * 22695477) >>> 0) % 4);
+                ctx.fillRect(px2, py2, 3, 2);
+            }
+            ctx.restore();
         }
     }
 }
