@@ -1013,19 +1013,9 @@ function die() {
         updateScore();
         gameOverScreen.classList.remove('hidden');
     } else {
-        // Low score path — canvas-only overlay with 3-second countdown, no HTML popup
+        // Low score path — canvas-only overlay, tap/space to retry
         isEnteringScore = false;
         gameOverScreen.classList.add('hidden');
-        gameOverCountdown = 180; // 3 s at 60 fps
-        if (autoReturnTimer) { clearInterval(autoReturnTimer); autoReturnTimer = null; }
-        autoReturnTimer = setInterval(() => {
-            gameOverCountdown -= 60;
-            if (gameOverCountdown <= 0) {
-                clearInterval(autoReturnTimer);
-                autoReturnTimer = null;
-                if (isGameOver) resetGame();
-            }
-        }, 1000);
     }
 }
 
@@ -1222,35 +1212,15 @@ function drawGameOverOverlay() {
     memeStartY -= (lines.length - 1) * lineH * 0.5;
     lines.forEach((l, i) => ctx.fillText(l, cx, memeStartY + i * lineH));
 
-    // Countdown pill
-    let secsLeft = Math.max(0, Math.ceil(gameOverCountdown / 60));
-    let pillY = py + panelH * 0.84;
-    let pillW = panelW * 0.7, pillH = u * 1.6;
-    let pillX = cx - pillW / 2;
-    // Pulsing alpha for pill
-    let pulse = 0.55 + 0.25 * Math.sin(Date.now() * 0.004);
-    ctx.globalAlpha = pulse;
-    ctx.fillStyle = '#D46B4E';
-    ctx.beginPath();
-    let r2 = pillH / 2, px2 = pillX, py2 = pillY - pillH / 2;
-    ctx.moveTo(px2 + r2, py2);
-    ctx.lineTo(px2 + pillW - r2, py2);
-    ctx.arcTo(px2 + pillW, py2, px2 + pillW, py2 + r2, r2);
-    ctx.lineTo(px2 + pillW, py2 + pillH - r2);
-    ctx.arcTo(px2 + pillW, py2 + pillH, px2 + pillW - r2, py2 + pillH, r2);
-    ctx.lineTo(px2 + r2, py2 + pillH);
-    ctx.arcTo(px2, py2 + pillH, px2, py2 + pillH - r2, r2);
-    ctx.lineTo(px2, py2 + r2);
-    ctx.arcTo(px2, py2, px2 + r2, py2, r2);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    ctx.font = `${u * 0.85}px "Press Start 2P", monospace`;
-    ctx.fillStyle = '#ffffff';
-    ctx.shadowColor = '#000000';
-    ctx.shadowBlur = 4;
-    ctx.fillText(`TAP TO RETRY   (${secsLeft})`, cx, pillY);
+    // Blinking "TAP TO RETRY" — matches h1 / main-menu title colour #D46B4E
+    let blink = Math.floor(Date.now() / 500) % 2 === 0;
+    if (blink) {
+        ctx.font = `${u * 0.9}px "Press Start 2P", monospace`;
+        ctx.fillStyle = '#D46B4E';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 3;
+        ctx.fillText('TAP / SPACE TO RETRY', cx, py + panelH * 0.84);
+    }
 
     ctx.restore();
 }
@@ -1270,8 +1240,8 @@ function stopAttract() {
 }
 
 function drawAttract() {
-    let phase = Math.min(2, Math.floor(attractFrame / 100)); // 0 → L1, 1 → L2, 2 → L3
-    let pf    = attractFrame % 100;                          // 0-99 within each phase
+    let phase = Math.min(2, Math.floor(attractFrame / 240)); // 0 → L1, 1 → L2, 2 → L3
+    let pf    = attractFrame % 240;                          // 0-239 within each phase
 
     // Background
     const bgColors = ['#242424', '#1a0033', '#110011'];
@@ -1288,16 +1258,16 @@ function drawAttract() {
         ctx.fillStyle = phase === 0 ? '#3a3a3a' : '#330033';
         for (let s of stars) ctx.fillRect(s.x, s.y, s.size, s.size);
 
-        // Animated Claude — jumps over incoming enemy
+        // Animated Claude — two jumps over 240 frames
         let px       = canvas.width * 0.22;
-        let jumpY    = Math.max(0, Math.sin((pf / 100) * Math.PI * 2) * 65);
+        let jumpY    = Math.max(0, Math.sin((pf / 240) * Math.PI * 4) * 65);
         let py       = GROUND_Y - 40 - jumpY;
         let pMap     = (Math.floor(pf / 6) % 2 === 0) ? claudeFrame1 : claudeFrame2;
         drawSprite(px, py, pMap, COLOR_CLAUDE);
 
         if (phase === 0) {
             // Bug crawling toward player
-            let bx     = canvas.width * 1.1 - (pf / 100) * (canvas.width * 1.3);
+            let bx     = canvas.width * 1.1 - (pf / 240) * (canvas.width * 1.3);
             let bobOff = (Math.floor(pf / 8) % 2 === 0) ? -2 : 0;
             drawSprite(bx, GROUND_Y - 28 + bobOff, Math.floor(pf / 7) % 2 === 0 ? bugMap : bugMap2);
             ctx.save();
@@ -1306,13 +1276,13 @@ function drawAttract() {
             ctx.fillRect(bx + PIXEL_SIZE * 6, GROUND_Y - 28 + bobOff + PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
             ctx.restore();
             // Fly bouncing mid-air
-            let fx   = canvas.width * 0.78 - (pf / 100) * (canvas.width * 0.5);
-            let fy   = GROUND_Y - 65 + Math.sin(pf * 0.12) * 15;
+            let fx   = canvas.width * 0.78 - (pf / 240) * (canvas.width * 0.5);
+            let fy   = GROUND_Y - 65 + Math.sin(pf * 0.05) * 15;
             let fMap = (Math.floor(pf / 6) % 2 === 0) ? flyMap1 : flyMap2;
             drawSprite(fx, fy, fMap);
         } else {
             // RGB-split glitch block
-            let gx = canvas.width * 0.85 - (pf / 100) * (canvas.width * 0.8);
+            let gx = canvas.width * 0.85 - (pf / 240) * (canvas.width * 0.8);
             let gy = GROUND_Y - 28;
             ctx.save();
             ctx.globalAlpha = 0.65;
@@ -1324,8 +1294,8 @@ function drawAttract() {
             for (let jj = gy; jj < gy + 24; jj += 4) ctx.fillRect(gx - 4, jj, 32, 2);
             ctx.restore();
             // 429 rate-limit wall
-            let rlx   = canvas.width * 0.62 - (pf / 100) * (canvas.width * 0.55);
-            let pulse = 0.5 + Math.sin(pf * 0.1) * 0.5;
+            let rlx   = canvas.width * 0.62 - (pf / 240) * (canvas.width * 0.55);
+            let pulse = 0.5 + Math.sin(pf * 0.04) * 0.5;
             ctx.save();
             ctx.fillStyle = `rgba(200,20,20,${pulse})`;
             ctx.fillRect(rlx, GROUND_Y - 32, 64, 32);
@@ -1364,13 +1334,13 @@ function drawAttract() {
             }
         }
         // Bouncing Claude
-        let bi   = Math.floor(pf / 33) % 3;
+        let bi   = Math.floor(pf / 80) % 3;
         let bp   = pd[bi + 1];
-        let bfr  = (pf % 33) / 33;
+        let bfr  = (pf % 80) / 80;
         let bclY = bp.y - 40 - Math.abs(Math.sin(bfr * Math.PI)) * 80;
         drawSprite(bp.x + (bp.dx||0) + bp.w/2 - 24, bclY, claudeFrame1, COLOR_CLAUDE);
         // Rising floor
-        let floorY = canvas.height * 0.95 - (pf * 0.35);
+        let floorY = canvas.height * 0.95 - (pf * 0.15);
         ctx.fillStyle = 'rgba(255,0,0,0.35)';
         ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
         ctx.fillStyle = '#ff0000'; ctx.fillRect(0, floorY, canvas.width, 2);
@@ -1384,28 +1354,65 @@ function drawAttract() {
         ['GLITCHES  TIMEOUTS  RATE LIMITS',   'GOLD TOKENS MAY BE HALLUCINATIONS!'],
         ['\u2190 \u2192 MOVE   BOUNCE ON PLATFORMS', 'CYAN DIAMONDS SLOW THE RED FLOOR'],
     ];
+
+    let cw = canvas.width, ch = canvas.height;
+    let u  = Math.max(10, Math.min(cw / 30, 24)); // responsive unit
+
     ctx.save();
     ctx.textAlign = 'center';
-    // Top banner
+
+    // ---- Level transition title card (first 60 frames of each phase) ----
+    if (pf < 60) {
+        // Fade in over 20 frames, hold, fade out over 20 frames
+        let alpha = pf < 20 ? pf / 20 : pf > 40 ? (60 - pf) / 20 : 1;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(0,0,0,0.88)';
+        ctx.fillRect(0, 0, cw, ch);
+
+        // Coloured border bars
+        ctx.fillStyle = phaseColors[phase];
+        ctx.fillRect(0, 0, cw, u * 0.5);
+        ctx.fillRect(0, ch - u * 0.5, cw, u * 0.5);
+
+        // Level number label
+        ctx.font = `${u * 0.85}px "Press Start 2P", monospace`;
+        ctx.fillStyle = phaseColors[phase];
+        ctx.shadowColor = phaseColors[phase];
+        ctx.shadowBlur = u * 0.8;
+        ctx.fillText(phaseTitles[phase], cw / 2, ch / 2 - u * 1.1);
+        ctx.shadowBlur = 0;
+
+        // Subtitle lines
+        ctx.font = `${u * 0.6}px "Press Start 2P", monospace`;
+        ctx.fillStyle = '#cccccc';
+        phaseLines[phase].forEach((line, i) => ctx.fillText(line, cw / 2, ch / 2 + u * 0.3 + i * u * 1.0));
+
+        ctx.globalAlpha = 1;
+        ctx.restore();
+        return; // Skip top/bottom bars during title card
+    }
+
+    // Top banner (shown after title card)
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(0, 0, canvas.width, 82);
+    ctx.fillRect(0, 0, cw, u * 3.5);
     ctx.fillStyle = phaseColors[phase];
-    ctx.font = `bold ${PIXEL_SIZE * 2.5}px "Press Start 2P", monospace`;
-    ctx.fillText(phaseTitles[phase], canvas.width / 2, 30);
+    ctx.font = `bold ${u * 1.1}px "Press Start 2P", monospace`;
+    ctx.fillText(phaseTitles[phase], cw / 2, u * 1.5);
     ctx.fillStyle = '#cccccc';
-    ctx.font = `${PIXEL_SIZE * 1.4}px "Press Start 2P", monospace`;
-    phaseLines[phase].forEach((line, i) => ctx.fillText(line, canvas.width / 2, 52 + i * 18));
+    ctx.font = `${u * 0.65}px "Press Start 2P", monospace`;
+    phaseLines[phase].forEach((line, i) => ctx.fillText(line, cw / 2, u * 2.3 + i * u * 0.85));
+
     // Bottom bar
     ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(0, canvas.height - 38, canvas.width, 38);
+    ctx.fillRect(0, ch - u * 1.8, cw, u * 1.8);
     ctx.fillStyle = (Math.floor(attractFrame / 20) % 2 === 0) ? '#ffffff' : '#666666';
-    ctx.font = `${PIXEL_SIZE * 1.5}px "Press Start 2P", monospace`;
-    ctx.fillText('PRESS ANY KEY TO PLAY', canvas.width / 2, canvas.height - 13);
+    ctx.font = `${u * 0.7}px "Press Start 2P", monospace`;
+    ctx.fillText('PRESS ANY KEY TO PLAY', cw / 2, ch - u * 0.5);
     // Phase indicator dots
     for (let i = 0; i < 3; i++) {
         ctx.fillStyle = i === phase ? '#ffffff' : '#444444';
         ctx.beginPath();
-        ctx.arc(canvas.width / 2 - 16 + i * 16, canvas.height - 50, 4, 0, Math.PI * 2);
+        ctx.arc(cw / 2 - 16 + i * 16, ch - u * 1.35, 4, 0, Math.PI * 2);
         ctx.fill();
     }
     ctx.restore();
@@ -1660,7 +1667,6 @@ function loop() {
             updateVertical();
         }
         drawVertical();
-        if (isGameOver && !isEnteringScore && gameOverCountdown > 0) gameOverCountdown--;
         drawGameOverOverlay();
         if (isPlaying && frameCount % 10 === 0) updateScore();
         return;
@@ -1668,15 +1674,12 @@ function loop() {
 
     requestAnimationFrame(loop);
 
-    // Canvas game-over countdown (low score path)
-    if (isGameOver && !isEnteringScore && gameOverCountdown > 0) {
-        gameOverCountdown--;
-    }
+
 
     // Attract / idle demo mode
     if (attractMode) {
         attractFrame++;
-        if (attractFrame >= 300) stopAttract();
+        if (attractFrame >= 720) stopAttract();
         else drawAttract();
         return;
     }
