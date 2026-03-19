@@ -197,19 +197,19 @@ const gpuMap = [
     " 666666 "
 ];
 
-function drawSprite(x, y, map, overrideColor = null) {
+function drawSprite(x, y, map, overrideColor = null, ps = PIXEL_SIZE) {
     for (let r = 0; r < map.length; r++) {
         for (let c = 0; c < map[r].length; c++) {
             let char = map[r][c];
             if (char === ' ') continue;
-            
+
             if (char === '1') ctx.fillStyle = COLOR_CLAUDE;
             else if (char === '3') ctx.fillStyle = COLOR_CLAUDE_EYE;
             else if (char === '4') ctx.fillStyle = COLOR_BUG;
             else if (char === '5') ctx.fillStyle = COLOR_FRUIT_LEAF;
             else if (char === '6') ctx.fillStyle = overrideColor;
-            
-            ctx.fillRect(x + c * PIXEL_SIZE, y + r * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+
+            ctx.fillRect(x + c * ps, y + r * ps, ps, ps);
         }
     }
 }
@@ -237,13 +237,16 @@ class FloatingText {
         ctx.textAlign = 'center';
         
         if (this.isStatic) {
-            ctx.font = `${24 * this.scale}px "Press Start 2P", Courier`;
+            // Cap to ~5% of canvas width so it never overflows on mobile
+            let base = Math.min(24, canvas.width * 0.05);
+            ctx.font = `${base * this.scale}px "Press Start 2P", Courier`;
             let scalePulse = 1 + Math.sin(frameCount * 0.2) * 0.05;
             ctx.translate(canvas.width / 2, this.y);
             ctx.scale(scalePulse, scalePulse);
             ctx.fillText(this.text, 0, 0);
         } else {
-            ctx.font = `${14 * this.scale}px "Press Start 2P", Courier`;
+            let base = Math.min(14, canvas.width * 0.038);
+            ctx.font = `${base * this.scale}px "Press Start 2P", Courier`;
             ctx.fillText(this.text, this.x + 20, this.y);
         }
         ctx.restore();
@@ -363,8 +366,9 @@ class Obstacle {
         this.markedForDeletion = false;
 
         if (this.type === 'bug') {
-            this.width = 10 * PIXEL_SIZE;
-            this.height = 7 * PIXEL_SIZE;
+            // Drawn at PS6 (1.5× PIXEL_SIZE): sprite cols=9 → 54px, rows=5 → 30px
+            this.width = 14 * PIXEL_SIZE;   // ~56px — matches drawn sprite width
+            this.height = 8 * PIXEL_SIZE;   // ~32px — with leg-bounce room
             this.y = GROUND_Y - this.height;
         } else if (this.type === 'fly') {
             this.width = 8 * PIXEL_SIZE;
@@ -439,15 +443,16 @@ class Obstacle {
     draw() {
         if (this.type === 'bug') {
             let frame   = Math.floor(frameCount / 7) % 2;
-            let offsetY = frame === 0 ? -2 : 0;
-            drawSprite(this.x, this.y + offsetY, frame === 0 ? bugMap : bugMap2);
-            // Glowing red eyes
+            let offsetY = frame === 0 ? -3 : 0;
+            const BPS = 6; // bug pixel size — 1.5× for visibility on mobile
+            drawSprite(this.x, this.y + offsetY, frame === 0 ? bugMap : bugMap2, null, BPS);
+            // Glowing red eyes (scaled to BPS)
             ctx.save();
             ctx.fillStyle = '#ff0000';
             ctx.shadowColor = '#ff0000';
-            ctx.shadowBlur = 6;
-            ctx.fillRect(this.x + PIXEL_SIZE * 2, this.y + offsetY + PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-            ctx.fillRect(this.x + PIXEL_SIZE * 6, this.y + offsetY + PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+            ctx.shadowBlur = 8;
+            ctx.fillRect(this.x + BPS * 2, this.y + offsetY + BPS, BPS, BPS);
+            ctx.fillRect(this.x + BPS * 6, this.y + offsetY + BPS, BPS, BPS);
             ctx.restore();
 
         } else if (this.type === 'fly') {
@@ -460,25 +465,29 @@ class Obstacle {
             ctx.restore();
 
         } else if (this.type === 'glitch') {
-            // RGB channel-split layers + scanlines
             ctx.save();
-            ctx.globalAlpha = 0.65;
+            // Solid neon body so it has a visible form
+            ctx.fillStyle = '#cc00ff';
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            // Darker face / body detail
+            ctx.fillStyle = '#220033';
+            ctx.fillRect(this.x + 4, this.y + 4, this.width - 8, this.height - 8);
+            // Glitchy eyes — flash between colours
+            let eyeCol = frameCount % 4 < 2 ? '#ffffff' : '#ff00ff';
+            ctx.fillStyle = eyeCol;
+            ctx.fillRect(this.x + 4, this.y + 6, 5, 4);
+            ctx.fillRect(this.x + this.width - 9, this.y + 6, 5, 4);
+            // RGB channel-split ghost layers
+            ctx.globalAlpha = 0.35;
             ctx.fillStyle = '#ff0044';
-            ctx.fillRect(this.x - 3, this.y, this.width, this.height);
-            ctx.fillStyle = '#00ff88';
-            ctx.fillRect(this.x,     this.y, this.width, this.height);
+            ctx.fillRect(this.x - 4, this.y, this.width, this.height);
             ctx.fillStyle = '#4488ff';
-            ctx.fillRect(this.x + 3, this.y, this.width, this.height);
+            ctx.fillRect(this.x + 4, this.y, this.width, this.height);
             ctx.globalAlpha = 1;
-            // Scanlines
-            ctx.fillStyle = 'rgba(0,0,0,0.45)';
-            for (let j = this.y; j < this.y + this.height; j += 4) {
-                ctx.fillRect(this.x - 4, j, this.width + 8, 2);
-            }
             // Random horizontal glitch bar
             ctx.fillStyle = frameCount % 2 === 0 ? '#ffffff' : '#ff00ff';
             let gbar = this.y + Math.floor(Math.random() * this.height);
-            ctx.fillRect(this.x - 4, gbar, this.width + 8, 3);
+            ctx.fillRect(this.x - 2, gbar, this.width + 4, 2);
             ctx.restore();
 
         } else if (this.type === 'rate_limit') {
