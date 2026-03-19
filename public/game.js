@@ -631,6 +631,9 @@ let farSkyline = [];
 let nearSkyline = [];
 let isRestarting = false;
 let gameOverTime = 0;
+let autoReturnTimer = null;
+let gameOverMeme = '';
+let gameOverCountdown = 0; // frames remaining for on-canvas countdown
 let currentLevel = 1;
 
 let platforms = [];
@@ -971,6 +974,9 @@ function resetGame() {
 
     isPlaying = true;
     isGameOver = false;
+    gameOverCountdown = 0;
+    gameOverMeme = '';
+    if (autoReturnTimer) { clearInterval(autoReturnTimer); autoReturnTimer = null; }
 
     bgm.playbackRate = 1.0;
     bgm.currentTime = 0;
@@ -986,32 +992,41 @@ function die() {
     isPlaying = false;
     isGameOver = true;
     gameOverTime = Date.now();
-    
+
     bgm.pause();
     dieSfx.currentTime = 0;
     dieSfx.play().catch(e => {});
-
     triggerShake(15);
-    
-    // Pick random meme
-    gameOverTitle.innerText = DEATH_MEMES[Math.floor(Math.random() * DEATH_MEMES.length)];
 
-    let lowestHighScore = highScores.length < 5 ? 0 : highScores[highScores.length-1].score;
-    
+    gameOverMeme = DEATH_MEMES[Math.floor(Math.random() * DEATH_MEMES.length)];
+
+    let lowestHighScore = highScores.length < 5 ? 0 : highScores[highScores.length - 1].score;
+
     if (score >= 5000 && score > lowestHighScore) {
+        // High score path — show HTML score entry screen
         isEnteringScore = true;
+        gameOverTitle.innerText = gameOverMeme;
         newHighscoreBox.classList.remove('hidden');
         restartText.classList.add('hidden');
         initialsInput.value = '';
         setTimeout(() => initialsInput.focus(), 100);
+        updateScore();
+        gameOverScreen.classList.remove('hidden');
     } else {
+        // Low score path — canvas-only overlay with 3-second countdown, no HTML popup
         isEnteringScore = false;
-        newHighscoreBox.classList.add('hidden');
-        restartText.classList.remove('hidden');
+        gameOverScreen.classList.add('hidden');
+        gameOverCountdown = 180; // 3 s at 60 fps
+        if (autoReturnTimer) { clearInterval(autoReturnTimer); autoReturnTimer = null; }
+        autoReturnTimer = setInterval(() => {
+            gameOverCountdown -= 60;
+            if (gameOverCountdown <= 0) {
+                clearInterval(autoReturnTimer);
+                autoReturnTimer = null;
+                if (isGameOver) resetGame();
+            }
+        }, 1000);
     }
-    
-    updateScore();
-    gameOverScreen.classList.remove('hidden');
 }
 
 if(submitScoreBtn) {
@@ -1130,6 +1145,53 @@ canvas.parentElement.addEventListener('mousedown', (e) => {
 // ---------------------------------------------------------------------------
 // Attract / demo mode
 // ---------------------------------------------------------------------------
+
+function drawGameOverOverlay() {
+    if (!isGameOver || isEnteringScore) return;
+    // Semi-transparent backdrop
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    let cx = canvas.width / 2;
+    let cy = canvas.height / 2;
+
+    // Death meme
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = `${PIXEL_SIZE * 2}px "Press Start 2P", monospace`;
+    ctx.fillStyle = '#ff4444';
+    ctx.shadowColor = '#ff0000';
+    ctx.shadowBlur = 12;
+    ctx.fillText('GAME OVER', cx, cy - 60);
+    ctx.restore();
+
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = `${PIXEL_SIZE * 1.2}px "Press Start 2P", monospace`;
+    ctx.fillStyle = '#ffffff';
+    // Wrap long meme text
+    let words = gameOverMeme.split(' ');
+    let line = '', lineY = cy - 20, lineH = PIXEL_SIZE * 1.8;
+    for (let w of words) {
+        let test = line + (line ? ' ' : '') + w;
+        if (ctx.measureText(test).width > canvas.width * 0.8 && line) {
+            ctx.fillText(line, cx, lineY);
+            line = w;
+            lineY += lineH;
+        } else { line = test; }
+    }
+    if (line) ctx.fillText(line, cx, lineY);
+    ctx.restore();
+
+    // Countdown / tap-to-retry
+    let secsLeft = Math.ceil(gameOverCountdown / 60);
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = `${PIXEL_SIZE * 1.1}px "Press Start 2P", monospace`;
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillText(`TAP TO RETRY  (${secsLeft})`, cx, cy + 60);
+    ctx.restore();
+}
 
 function startAttract() {
     attractMode  = true;
@@ -1536,11 +1598,18 @@ function loop() {
             updateVertical();
         }
         drawVertical();
+        if (isGameOver && !isEnteringScore && gameOverCountdown > 0) gameOverCountdown--;
+        drawGameOverOverlay();
         if (isPlaying && frameCount % 10 === 0) updateScore();
         return;
     }
 
     requestAnimationFrame(loop);
+
+    // Canvas game-over countdown (low score path)
+    if (isGameOver && !isEnteringScore && gameOverCountdown > 0) {
+        gameOverCountdown--;
+    }
 
     // Attract / idle demo mode
     if (attractMode) {
@@ -1783,6 +1852,8 @@ function loop() {
     for (let ft of floatTexts) {
         ft.draw();
     }
+
+    drawGameOverOverlay();
 }
 
 // Init
