@@ -1120,6 +1120,11 @@ function handleInput() {
     if (attractMode) { stopAttract(); return; }
 
     if (!isPlaying && !isGameOver) {
+        // Call bgm.play() here — still inside the synchronous user-gesture
+        // call stack, so browsers allow it without autoplay restrictions.
+        bgm.currentTime = 0;
+        bgm.playbackRate = 1.0;
+        bgm.play().catch(() => {});
         resetGame();
     } else if (isPlaying) {
         player.jump();
@@ -1175,30 +1180,19 @@ window.addEventListener('mouseup', () => {
     }
 });
 
-// Audio unlock — browsers block autoplay until first user gesture.
-// Play+pause on any input so the AudioContext is warm before resetGame().
-let audioUnlocked = false;
-function ensureAudio() {
-    if (audioUnlocked) return;
-    audioUnlocked = true;
-    bgm.play().then(() => { bgm.pause(); bgm.currentTime = 0; }).catch(() => {});
-}
-
 // Inputs
 window.addEventListener('keydown', (e) => {
     if (e.code === 'Space' || e.code === 'ArrowUp') {
         e.preventDefault();
-        ensureAudio();
         handleInput();
     }
 });
 canvas.parentElement.addEventListener('touchstart', (e) => {
     e.preventDefault();
-    ensureAudio();
     handleInput();
 }, {passive: false});
 canvas.parentElement.addEventListener('mousedown', (e) => {
-    if (e.button === 0) { ensureAudio(); handleInput(); }
+    if (e.button === 0) handleInput();
 });
 
 // ---------------------------------------------------------------------------
