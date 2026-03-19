@@ -567,7 +567,9 @@ let cameraY = 0;
 let deathFloorY = 0;
 let moveLeft = false;
 let moveRight = false;
-let graceFrames = 0; // Grace period at level start — death floor frozen
+let graceFrames = 0;    // Grace period at level start — death floor frozen
+let floorSlowTimer = 0; // While > 0, death floor rises much slower
+let verticalBonuses = []; // CTX EXPAND pickups floating above platforms
 
 const CLI_ERROR_LABELS = ['RATE LIMIT', 'TOOL DENIED', 'CTX FULL', 'BAD PROMPT', 'PERM DENIED', 'DEPRECATED'];
 
@@ -632,6 +634,7 @@ class Platform {
 
 function initVertical() {
     platforms = [];
+    verticalBonuses = [];
     cameraY = 0;
     deathFloorY = canvas.height;
 
@@ -642,7 +645,10 @@ function initVertical() {
     // First 10 platforms: all normal so the player can learn the bounce mechanic
     let currY = canvas.height - 100;
     for (let i = 0; i < 10; i++) {
-        platforms.push(new Platform(Math.random() * (canvas.width - 100), currY, 'normal'));
+        let p = new Platform(Math.random() * (canvas.width - 100), currY, 'normal');
+        platforms.push(p);
+        // Every 3rd safe platform gets a floor-slow bonus above it
+        if (i % 3 === 1) addFloorSlowBonus(p);
         currY -= (60 + Math.random() * 40);
     }
 
@@ -653,6 +659,15 @@ function initVertical() {
     }
 }
 
+function addFloorSlowBonus(platform) {
+    verticalBonuses.push({
+        x: platform.x + platform.width / 2 - 12,
+        y: platform.y - 38,       // floats just above the platform
+        active: true,
+        hoverOffset: Math.random() * Math.PI * 2
+    });
+}
+
 function spawnPlatform(yPos) {
     let r = Math.random();
     let type = 'normal';
@@ -661,7 +676,13 @@ function spawnPlatform(yPos) {
     else if (r > 0.50) type = 'moving'; // 26% — moving platform
     // else 50% normal
 
-    platforms.push(new Platform(Math.random() * (canvas.width - 100), yPos, type));
+    let p = new Platform(Math.random() * (canvas.width - 100), yPos, type);
+    platforms.push(p);
+
+    // 22% chance of a floor-slow bonus on safe platforms
+    if ((type === 'normal' || type === 'boost') && Math.random() < 0.22) {
+        addFloorSlowBonus(p);
+    }
 }
 
 let corruptionTimer = 0; // Speed debuff timer
@@ -862,21 +883,15 @@ function resetGame() {
     nextObstacleTimer = 60;
     nextFruitTimer = 120;
     
-    // DEBUG: start directly at Level 3 for testing
-    currentLevel = 3;
+    // Restore all 3 levels — 1000 tokens needed to pass each level
+    currentLevel = 1;
     platforms = [];
+    verticalBonuses = [];
+    floorSlowTimer = 0;
     moveLeft = false;
     moveRight = false;
     COLOR_BG = '#242424';
     COLOR_GROUND = '#555555';
-
-    initVertical();
-    player.x = canvas.width / 2 - player.width / 2;
-    player.y = canvas.height - 30 - player.height;
-    player.vy = 0;
-    player.isJumping = false;
-    player.isFalling = false;
-    graceFrames = 300; // 5-second frozen-floor intro
 
     isPlaying = true;
     isGameOver = false;
@@ -1057,9 +1072,31 @@ function updateVertical() {
         score += diff * 0.1; 
     }
     
-    // Death floor — frozen during grace period, then rises normally
+    // Floor-slow bonus collision (world-space hitbox)
+    for (let i = verticalBonuses.length - 1; i >= 0; i--) {
+        let b = verticalBonuses[i];
+        if (!b.active) continue;
+        let bSize = 24;
+        if (player.x + player.width > b.x && player.x < b.x + bSize &&
+            player.y + player.height > b.y && player.y < b.y + bSize) {
+            b.active = false;
+            floorSlowTimer += 360; // +6 seconds (stackable)
+            if (floorSlowTimer > 720) floorSlowTimer = 720; // cap at 12 s
+            spawnExplosion(b.x + 12, b.y + 12, '#00ffff');
+            floatTexts.push(new FloatingText(player.x, player.y - cameraY, 'CTX EXPANDED! FLOOR SLOWED', '#00ffff', false, 90));
+            collectSfx.currentTime = 0;
+            collectSfx.play().catch(e => {});
+        }
+        // Remove bonuses that scrolled far below camera
+        if (b.y > cameraY + canvas.height + 150) verticalBonuses.splice(i, 1);
+    }
+
+    // Death floor — frozen during grace period, slow during bonus, normal otherwise
     if (graceFrames > 0) {
         graceFrames--;
+    } else if (floorSlowTimer > 0) {
+        floorSlowTimer--;
+        deathFloorY -= 0.3 + (score * 0.0001); // ~80% slower
     } else {
         deathFloorY -= 1.5 + (score * 0.0005);
     }
@@ -1138,7 +1175,32 @@ function drawVertical() {
     }
 
     for (let p of platforms) p.draw();
-    
+
+    // Draw floor-slow bonus pickups
+    for (let b of verticalBonuses) {
+        if (!b.active) continue;
+        let sy = b.y - cameraY;
+        if (sy < -30 || sy > canvas.height + 30) continue;
+        let hover = Math.sin(frameCount * 0.08 + b.hoverOffset) * 4;
+        // Cyan glowing diamond
+        ctx.save();
+        ctx.fillStyle = '#00ffff';
+        ctx.globalAlpha = 0.85 + Math.sin(frameCount * 0.12 + b.hoverOffset) * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(b.x + 12, sy + hover);
+        ctx.lineTo(b.x + 24, sy + 12 + hover);
+        ctx.lineTo(b.x + 12, sy + 24 + hover);
+        ctx.lineTo(b.x,      sy + 12 + hover);
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${PIXEL_SIZE}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText('CTX', b.x + 12, sy + 14 + hover);
+        ctx.restore();
+    }
+
     // Draw player
     let currentMap = claudeFrame1;
     if (player.vy < -2) currentMap = claudeFrame2; 
@@ -1164,6 +1226,28 @@ function drawVertical() {
     }
     
     ctx.restore();
+
+    // Floor-slow active HUD bar
+    if (floorSlowTimer > 0) {
+        ctx.save();
+        let barW = 140;
+        let barH = 10;
+        let bx = canvas.width - barW - 10;
+        let by = 38;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(bx - 2, by - 14, barW + 4, barH + 18);
+        ctx.fillStyle = '#00ffff';
+        ctx.font = `bold ${PIXEL_SIZE * 1.5}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.fillText('FLOOR SLOW', bx, by);
+        // Bar background
+        ctx.fillStyle = '#003333';
+        ctx.fillRect(bx, by + 2, barW, barH);
+        // Bar fill (fraction of max 720)
+        ctx.fillStyle = '#00ffff';
+        ctx.fillRect(bx, by + 2, barW * (floorSlowTimer / 720), barH);
+        ctx.restore();
+    }
 
     // Grace period overlay — countdown + control hints
     if (graceFrames > 0) {
@@ -1387,7 +1471,7 @@ function loop() {
         
         score += 0.05; // Passive survival score is extremely slow now. You MUST get tokens!
         
-        if (score >= 500 && currentLevel === 1) {
+        if (score >= 1000 && currentLevel === 1) {
             currentLevel = 2;
             COLOR_BG = '#1a0033'; // Deep synthwave purple
             COLOR_GROUND = '#4d004d'; // Neon pinkish dark
@@ -1401,7 +1485,7 @@ function loop() {
         }
 
         // Level 2 → Level 3: Vertical escape mode
-        if (score >= 1500 && currentLevel === 2) {
+        if (score >= 2000 && currentLevel === 2) {
             currentLevel = 3;
             obstacles = [];
             collectibles = [];
