@@ -16,6 +16,43 @@ The goal is to survive as long as possible by navigating Claude through an endle
 - **Flying Bugs (Score > 300)**: Flapping red bugs that bounce up and down in a sine wave. Timing is everything!
 - **Sinkholes (Score > 100)**: Procedurally generated gaps in the floor. If you miss your jump, Claude will plummet into the void.
 
+## 🗺️ Levels
+
+The game has three escalating levels. You need **1000 tokens** to advance from Level 1 → 2, and **2000 tokens** to advance from Level 2 → 3.
+
+### Level 1 — The Bug Hunt
+Classic horizontal endless runner set in a dark terminal. Dodge ground bugs, flying errors, and sinkholes while collecting tokens.
+
+| Enemy | Description |
+|-------|-------------|
+| **Bug** | Red ground crawler — animated walk cycle with glowing eyes |
+| **Fly** | Airborne sine-wave enemy — timing your jump is critical |
+| **Sinkhole** | Gap in the floor — fall in and it's over |
+| **Rate Limit** | Wide pulsing `429` wall with electric edges — requires a well-timed jump |
+
+### Level 2 — Weights Corrupted
+The world shifts to synthwave purple. New AI-themed enemies spawn alongside the old ones, speed increases, and chaos reigns.
+
+| Enemy | Description |
+|-------|-------------|
+| **Glitch** | RGB channel-split block that jitters unpredictably — corrupted model weights |
+| **Timeout** | Comet-shaped orange missile at 2.5× speed with trailing afterburners |
+| **Hallucination** | Looks just like a golden GPU collectible; a brief purple flicker is the only tell |
+
+### Level 3 — Escape the Matrix
+The game flips to a **vertical platformer**. Claude falls upward through a matrix and must bounce between platforms before a rising death floor catches him.
+
+| Platform | Colour | Effect |
+|----------|--------|--------|
+| Normal | Blue | Safe bounce |
+| Moving | Purple | Drifts left/right — unpredictable |
+| Enemy | Red | −50 score (labelled: RATE LIMIT / TOOL DENIED / etc.) |
+| Boost | Green | +100 score + super-high bounce |
+
+**Controls (Level 3):** `←` / `→` arrow keys to move. Bounce off platforms to survive. Collect cyan **floor-slow diamonds** on platforms to slow the rising death floor.
+
+> Idle on the main menu for 10 seconds to watch an auto-play demo of all three levels!
+
 ## 🍓 Powerups & The Combo System
 
 Collecting items builds your **Multiplier Combo** (x2, x3, x5...). Missing an item resets your combo back to 0!
@@ -42,11 +79,17 @@ We built this for the devs. Keep an eye out for these hidden touches:
 ## 🏆 Leaderboard
 
 Local high scores are saved to your browser! 
-*Note: To prove you aren't a bot, you must reach a minimum score of **500** and beat the lowest entry on the board to save your initials.*
+*Note: To prove you aren't a bot, you must reach a minimum score of **5000** and beat the lowest entry on the board to save your initials.*
 
 ## ⚠️ Disclaimer
 
 This project is created strictly for fun and educational purposes. **It has absolutely no affiliation with Anthropic**. We just wanted to build a fun 2D homage to demonstrate some love for the awesome Claude CLI! ❤️
+
+## ☕ Support the Project
+
+If you enjoy the game, consider buying us a coffee!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/H2H51MPWG)
 
 ## 💻 Credits
 

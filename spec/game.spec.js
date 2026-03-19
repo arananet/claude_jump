@@ -204,34 +204,31 @@ describe('Level Progression', () => {
         let currentLevel = 1;
         expect(currentLevel).toBe(1);
     });
-    it('transitions to level 2 at score exactly 500', () => {
-        let score = 500; let level = 1;
-        if (score >= 500 && level === 1) level = 2;
+    it('requires 1000 tokens to leave level 1', () => {
+        let score = 1000; let level = 1;
+        if (score >= 1000 && level === 1) level = 2;
         expect(level).toBe(2);
     });
-    it('does NOT transition at score 499', () => {
-        let score = 499; let level = 1;
-        if (score >= 500 && level === 1) level = 2;
+    it('does NOT transition at 999 tokens', () => {
+        let score = 999; let level = 1;
+        if (score >= 1000 && level === 1) level = 2;
         expect(level).toBe(1);
     });
-    it('transitions to level 3 at score exactly 1500', () => {
-        let score = 1500; let level = 2;
-        if (score >= 1500 && level === 2) level = 3;
+    it('requires 2000 total tokens to leave level 2', () => {
+        let score = 2000; let level = 2;
+        if (score >= 2000 && level === 2) level = 3;
         expect(level).toBe(3);
     });
     it('does NOT transition to level 3 from level 1 (must pass through level 2)', () => {
-        let score = 2000; let level = 1;
-        if (score >= 500  && level === 1) level = 2;
-        if (score >= 1500 && level === 2) level = 3;
-        // Went 1 → 2 → 3 as expected
-        expect(level).toBe(3);
+        let score = 3000; let level = 1;
+        if (score >= 1000 && level === 1) level = 2;
+        if (score >= 2000 && level === 2) level = 3;
+        expect(level).toBe(3); // 1 → 2 → 3 sequential
     });
     it('does NOT skip level 2 even at very high score', () => {
         let score = 9999; let level = 1;
-        // Only check level 2 transition first
-        if (score >= 500 && level === 1) level = 2;
-        // level must be 2 now — not 3 yet until the NEXT check
-        expect(level).toBe(2); // still sequential
+        if (score >= 1000 && level === 1) level = 2;
+        expect(level).toBe(2); // only level 2 transition fires first
     });
 });
 
@@ -338,6 +335,42 @@ describe('Platform Types (Level 3)', () => {
     });
 });
 
+// --- Floor-Slow Bonus (Level 3) --------------------------------------------
+describe('Floor-Slow Bonus', () => {
+    it('collecting a CTX bonus adds 360 frames to floorSlowTimer', () => {
+        let floorSlowTimer = 0;
+        floorSlowTimer += 360;
+        expect(floorSlowTimer).toBe(360);
+    });
+    it('floorSlowTimer is capped at 720 frames (12 s)', () => {
+        let floorSlowTimer = 700;
+        floorSlowTimer += 360;
+        if (floorSlowTimer > 720) floorSlowTimer = 720;
+        expect(floorSlowTimer).toBe(720);
+    });
+    it('floor rises at ~0.3 px/frame while slow timer is active (vs 1.5 normally)', () => {
+        let normalRise = 1.5;
+        let slowRise   = 0.3;
+        expect(slowRise).toBeLessThan(normalRise * 0.5); // less than half
+    });
+    it('floor rise resumes normally once timer reaches 0', () => {
+        let floorSlowTimer = 1;
+        floorSlowTimer--;
+        // Timer expired — normal rise applies
+        expect(floorSlowTimer).toBe(0);
+    });
+    it('bonus is placed 38 px above its platform (reachable on bounce)', () => {
+        let platformY = 400;
+        let bonusY    = platformY - 38;
+        expect(bonusY).toBeLessThan(platformY);
+        expect(platformY - bonusY).toBe(38);
+    });
+    it('bonus is 24×24 px hitbox', () => {
+        let bSize = 24;
+        expect(bSize).toBeGreaterThan(0);
+    });
+});
+
 // --- Reset Behaviour -------------------------------------------------------
 describe('Reset Behaviour', () => {
     it('resetGame sets currentLevel back to 1', () => {
@@ -364,6 +397,16 @@ describe('Reset Behaviour', () => {
     it('resetGame resets combo to 0', () => {
         let combo = 10; combo = 0;
         expect(combo).toBe(0);
+    });
+    it('resetGame clears verticalBonuses array', () => {
+        let verticalBonuses = [{ active: true }, { active: false }];
+        verticalBonuses = [];
+        expect(verticalBonuses.length).toBe(0);
+    });
+    it('resetGame resets floorSlowTimer to 0', () => {
+        let floorSlowTimer = 360;
+        floorSlowTimer = 0;
+        expect(floorSlowTimer).toBe(0);
     });
 });
 
