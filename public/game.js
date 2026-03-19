@@ -1148,48 +1148,110 @@ canvas.parentElement.addEventListener('mousedown', (e) => {
 
 function drawGameOverOverlay() {
     if (!isGameOver || isEnteringScore) return;
-    // Semi-transparent backdrop
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    let cx = canvas.width / 2;
-    let cy = canvas.height / 2;
+    let cw = canvas.width, ch = canvas.height;
+    let cx = cw / 2, cy = ch / 2;
 
-    // Death meme
+    // Responsive scale unit: ~1/28 of canvas width, clamped so it's never tiny
+    let u = Math.max(12, Math.min(cw / 28, 28));
+
+    // Full-screen dark vignette
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(0, 0, cw, ch);
+
+    // Scanlines overlay for aesthetic
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#000000';
+    for (let sy = 0; sy < ch; sy += 4) ctx.fillRect(0, sy, cw, 2);
+    ctx.restore();
+
+    // Centre panel
+    let panelW = Math.min(cw * 0.88, 620);
+    let panelH = u * 13;
+    let px = cx - panelW / 2, py = cy - panelH / 2;
+    ctx.fillStyle = 'rgba(10,5,20,0.92)';
+    ctx.fillRect(px, py, panelW, panelH);
+    // Claude-orange border
+    ctx.strokeStyle = '#D46B4E';
+    ctx.lineWidth = Math.max(2, u * 0.18);
+    ctx.strokeRect(px, py, panelW, panelH);
+    // Inner accent line
+    ctx.strokeStyle = 'rgba(212,107,78,0.25)';
+    ctx.lineWidth = 1;
+    let m = u * 0.5;
+    ctx.strokeRect(px + m, py + m, panelW - m * 2, panelH - m * 2);
+
     ctx.save();
     ctx.textAlign = 'center';
-    ctx.font = `${PIXEL_SIZE * 2}px "Press Start 2P", monospace`;
+    ctx.textBaseline = 'middle';
+
+    // "GAME OVER" — glowing red
+    ctx.font = `${u * 1.9}px "Press Start 2P", monospace`;
+    ctx.shadowColor = '#ff2222';
+    ctx.shadowBlur = u * 1.2;
     ctx.fillStyle = '#ff4444';
-    ctx.shadowColor = '#ff0000';
-    ctx.shadowBlur = 12;
-    ctx.fillText('GAME OVER', cx, cy - 60);
-    ctx.restore();
+    ctx.fillText('GAME OVER', cx, py + panelH * 0.22);
+    ctx.shadowBlur = 0;
 
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = `${PIXEL_SIZE * 1.2}px "Press Start 2P", monospace`;
-    ctx.fillStyle = '#ffffff';
-    // Wrap long meme text
+    // Divider
+    ctx.strokeStyle = '#D46B4E';
+    ctx.lineWidth = Math.max(1, u * 0.12);
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(px + panelW * 0.08, py + panelH * 0.38);
+    ctx.lineTo(px + panelW * 0.92, py + panelH * 0.38);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Death meme — word-wrapped white text
+    ctx.font = `${u * 0.95}px "Press Start 2P", monospace`;
+    ctx.fillStyle = '#e0e0e0';
+    let maxW = panelW * 0.84;
     let words = gameOverMeme.split(' ');
-    let line = '', lineY = cy - 20, lineH = PIXEL_SIZE * 1.8;
+    let lines = [], cur = '';
     for (let w of words) {
-        let test = line + (line ? ' ' : '') + w;
-        if (ctx.measureText(test).width > canvas.width * 0.8 && line) {
-            ctx.fillText(line, cx, lineY);
-            line = w;
-            lineY += lineH;
-        } else { line = test; }
+        let test = cur + (cur ? ' ' : '') + w;
+        if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; }
+        else cur = test;
     }
-    if (line) ctx.fillText(line, cx, lineY);
-    ctx.restore();
+    if (cur) lines.push(cur);
+    let memeStartY = py + panelH * 0.52;
+    let lineH = u * 1.35;
+    // Centre block vertically if multi-line
+    memeStartY -= (lines.length - 1) * lineH * 0.5;
+    lines.forEach((l, i) => ctx.fillText(l, cx, memeStartY + i * lineH));
 
-    // Countdown / tap-to-retry
-    let secsLeft = Math.ceil(gameOverCountdown / 60);
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = `${PIXEL_SIZE * 1.1}px "Press Start 2P", monospace`;
-    ctx.fillStyle = '#aaaaaa';
-    ctx.fillText(`TAP TO RETRY  (${secsLeft})`, cx, cy + 60);
+    // Countdown pill
+    let secsLeft = Math.max(0, Math.ceil(gameOverCountdown / 60));
+    let pillY = py + panelH * 0.84;
+    let pillW = panelW * 0.7, pillH = u * 1.6;
+    let pillX = cx - pillW / 2;
+    // Pulsing alpha for pill
+    let pulse = 0.55 + 0.25 * Math.sin(Date.now() * 0.004);
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = '#D46B4E';
+    ctx.beginPath();
+    let r2 = pillH / 2, px2 = pillX, py2 = pillY - pillH / 2;
+    ctx.moveTo(px2 + r2, py2);
+    ctx.lineTo(px2 + pillW - r2, py2);
+    ctx.arcTo(px2 + pillW, py2, px2 + pillW, py2 + r2, r2);
+    ctx.lineTo(px2 + pillW, py2 + pillH - r2);
+    ctx.arcTo(px2 + pillW, py2 + pillH, px2 + pillW - r2, py2 + pillH, r2);
+    ctx.lineTo(px2 + r2, py2 + pillH);
+    ctx.arcTo(px2, py2 + pillH, px2, py2 + pillH - r2, r2);
+    ctx.lineTo(px2, py2 + r2);
+    ctx.arcTo(px2, py2, px2 + r2, py2, r2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.font = `${u * 0.85}px "Press Start 2P", monospace`;
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#000000';
+    ctx.shadowBlur = 4;
+    ctx.fillText(`TAP TO RETRY   (${secsLeft})`, cx, pillY);
+
     ctx.restore();
 }
 
