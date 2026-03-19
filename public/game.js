@@ -567,6 +567,7 @@ let cameraY = 0;
 let deathFloorY = 0;
 let moveLeft = false;
 let moveRight = false;
+let graceFrames = 0; // Grace period at level start — death floor frozen
 
 const CLI_ERROR_LABELS = ['RATE LIMIT', 'TOOL DENIED', 'CTX FULL', 'BAD PROMPT', 'PERM DENIED', 'DEPRECATED'];
 
@@ -633,14 +634,20 @@ function initVertical() {
     platforms = [];
     cameraY = 0;
     deathFloorY = canvas.height;
-    
-    // Base platform
+
+    // Full-width base platform — player starts here
     platforms.push(new Platform(0, canvas.height - 20, 'normal'));
     platforms[0].width = canvas.width;
-    
-    // Generate up
+
+    // First 10 platforms: all normal so the player can learn the bounce mechanic
     let currY = canvas.height - 100;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 10; i++) {
+        platforms.push(new Platform(Math.random() * (canvas.width - 100), currY, 'normal'));
+        currY -= (60 + Math.random() * 40);
+    }
+
+    // Remaining platforms: full mix (enemy / boost / moving / normal)
+    for (let i = 0; i < 10; i++) {
         spawnPlatform(currY);
         currY -= (60 + Math.random() * 40);
     }
@@ -855,16 +862,25 @@ function resetGame() {
     nextObstacleTimer = 60;
     nextFruitTimer = 120;
     
-    currentLevel = 1;
+    // DEBUG: start directly at Level 3 for testing
+    currentLevel = 3;
     platforms = [];
     moveLeft = false;
     moveRight = false;
     COLOR_BG = '#242424';
     COLOR_GROUND = '#555555';
-    
+
+    initVertical();
+    player.x = canvas.width / 2 - player.width / 2;
+    player.y = canvas.height - 30 - player.height;
+    player.vy = 0;
+    player.isJumping = false;
+    player.isFalling = false;
+    graceFrames = 300; // 5-second frozen-floor intro
+
     isPlaying = true;
     isGameOver = false;
-    
+
     bgm.playbackRate = 1.0;
     bgm.currentTime = 0;
     bgm.play().catch(e => {});
@@ -1041,8 +1057,12 @@ function updateVertical() {
         score += diff * 0.1; 
     }
     
-    // Death floor constantly rising
-    deathFloorY -= 1.5 + (score * 0.0005); 
+    // Death floor — frozen during grace period, then rises normally
+    if (graceFrames > 0) {
+        graceFrames--;
+    } else {
+        deathFloorY -= 1.5 + (score * 0.0005);
+    }
 
     // Collision with platforms (only when falling)
     if (player.vy > 0) {
@@ -1144,7 +1164,43 @@ function drawVertical() {
     }
     
     ctx.restore();
-    
+
+    // Grace period overlay — countdown + control hints
+    if (graceFrames > 0) {
+        let secsLeft = Math.ceil(graceFrames / 60);
+        ctx.save();
+        ctx.textAlign = 'center';
+
+        // Dimmed hint panel
+        ctx.fillStyle = 'rgba(0,0,0,0.45)';
+        ctx.fillRect(0, canvas.height * 0.18, canvas.width, canvas.height * 0.55);
+
+        // Level banner
+        ctx.fillStyle = '#00ff66';
+        ctx.font = `bold ${PIXEL_SIZE * 3}px "Press Start 2P", monospace`;
+        ctx.fillText('LEVEL 3', canvas.width / 2, canvas.height * 0.30);
+
+        // Big countdown
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `bold ${PIXEL_SIZE * 10}px "Press Start 2P", monospace`;
+        ctx.fillText(secsLeft > 0 ? secsLeft : 'GO!', canvas.width / 2, canvas.height * 0.54);
+
+        // Control hints
+        ctx.fillStyle = '#aaaaaa';
+        ctx.font = `${PIXEL_SIZE * 1.5}px "Press Start 2P", monospace`;
+        ctx.fillText('\u2190 \u2192  TO MOVE', canvas.width / 2, canvas.height * 0.63);
+        ctx.fillText('BOUNCE ON PLATFORMS TO CLIMB', canvas.width / 2, canvas.height * 0.69);
+        ctx.fillText('AVOID THE RISING RED FLOOR!', canvas.width / 2, canvas.height * 0.75);
+
+        // Platform legend
+        ctx.font = `${PIXEL_SIZE * 1.3}px monospace`;
+        ctx.fillStyle = '#0055cc'; ctx.fillText('BLUE = SAFE', canvas.width * 0.18, canvas.height * 0.83);
+        ctx.fillStyle = '#9900cc'; ctx.fillText('PURPLE = MOVING', canvas.width * 0.5, canvas.height * 0.83);
+        ctx.fillStyle = '#ff0000'; ctx.fillText('RED = DANGER', canvas.width * 0.82, canvas.height * 0.83);
+
+        ctx.restore();
+    }
+
     for (let ft of floatTexts) ft.draw();
 }
 
@@ -1356,6 +1412,7 @@ function loop() {
             player.vy = 0;
             player.isJumping = false;
             player.isFalling = false;
+            graceFrames = 300;
             floatTexts.push(new FloatingText(0, canvas.height / 3, "LEVEL 3: ESCAPE THE MATRIX!", "#00FF00", true, 150, 1.3));
             triggerShake(30);
             bgm.playbackRate = Math.min(2.5, bgm.playbackRate + 0.2);
