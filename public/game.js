@@ -1013,9 +1013,10 @@ function die() {
         updateScore();
         gameOverScreen.classList.remove('hidden');
     } else {
-        // Low score path — canvas-only overlay, tap/space to retry
+        // Low score path — canvas-only overlay; auto-return after 10 s
         isEnteringScore = false;
         gameOverScreen.classList.add('hidden');
+        gameOverCountdown = 600; // 10 s at 60 fps
     }
 }
 
@@ -1141,63 +1142,31 @@ function drawGameOverOverlay() {
 
     let cw = canvas.width, ch = canvas.height;
     let cx = cw / 2, cy = ch / 2;
+    // Responsive unit: matches main-menu h1 scale
+    let u = Math.max(12, Math.min(cw / 26, 30));
 
-    // Responsive scale unit: ~1/28 of canvas width, clamped so it's never tiny
-    let u = Math.max(12, Math.min(cw / 28, 28));
-
-    // Full-screen dark vignette
-    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    // Dark vignette — same shade as .screen background
+    ctx.fillStyle = 'rgba(36,36,36,0.88)';
     ctx.fillRect(0, 0, cw, ch);
-
-    // Scanlines overlay for aesthetic
-    ctx.save();
-    ctx.globalAlpha = 0.08;
-    ctx.fillStyle = '#000000';
-    for (let sy = 0; sy < ch; sy += 4) ctx.fillRect(0, sy, cw, 2);
-    ctx.restore();
-
-    // Centre panel
-    let panelW = Math.min(cw * 0.88, 620);
-    let panelH = u * 13;
-    let px = cx - panelW / 2, py = cy - panelH / 2;
-    ctx.fillStyle = 'rgba(10,5,20,0.92)';
-    ctx.fillRect(px, py, panelW, panelH);
-    // Claude-orange border
-    ctx.strokeStyle = '#D46B4E';
-    ctx.lineWidth = Math.max(2, u * 0.18);
-    ctx.strokeRect(px, py, panelW, panelH);
-    // Inner accent line
-    ctx.strokeStyle = 'rgba(212,107,78,0.25)';
-    ctx.lineWidth = 1;
-    let m = u * 0.5;
-    ctx.strokeRect(px + m, py + m, panelW - m * 2, panelH - m * 2);
 
     ctx.save();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // "GAME OVER" — glowing red
+    // "GAME OVER" — #D46B4E + pixel shadow, same as <h1> in the main menu
     ctx.font = `${u * 1.9}px "Press Start 2P", monospace`;
-    ctx.shadowColor = '#ff2222';
-    ctx.shadowBlur = u * 1.2;
-    ctx.fillStyle = '#ff4444';
-    ctx.fillText('GAME OVER', cx, py + panelH * 0.22);
+    ctx.fillStyle = '#D46B4E';
+    ctx.shadowColor = '#000000';
     ctx.shadowBlur = 0;
+    // pixel-style hard shadow (2 px offset, like CSS text-shadow: 2px 2px 0 #000)
+    ctx.fillStyle = '#000000';
+    ctx.fillText('GAME OVER', cx + 3, cy - u * 2.6 + 3);
+    ctx.fillStyle = '#D46B4E';
+    ctx.fillText('GAME OVER', cx, cy - u * 2.6);
 
-    // Divider
-    ctx.strokeStyle = '#D46B4E';
-    ctx.lineWidth = Math.max(1, u * 0.12);
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(px + panelW * 0.08, py + panelH * 0.38);
-    ctx.lineTo(px + panelW * 0.92, py + panelH * 0.38);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // Death meme — word-wrapped white text
-    ctx.font = `${u * 0.95}px "Press Start 2P", monospace`;
-    ctx.fillStyle = '#e0e0e0';
-    let maxW = panelW * 0.84;
+    // Death meme — word-wrapped, same #aaa as <p> in the main menu
+    ctx.font = `${u * 0.75}px "Press Start 2P", monospace`;
+    let maxW = Math.min(cw * 0.82, 560);
     let words = gameOverMeme.split(' ');
     let lines = [], cur = '';
     for (let w of words) {
@@ -1206,21 +1175,28 @@ function drawGameOverOverlay() {
         else cur = test;
     }
     if (cur) lines.push(cur);
-    let memeStartY = py + panelH * 0.52;
-    let lineH = u * 1.35;
-    // Centre block vertically if multi-line
-    memeStartY -= (lines.length - 1) * lineH * 0.5;
-    lines.forEach((l, i) => ctx.fillText(l, cx, memeStartY + i * lineH));
+    let lineH = u * 1.2;
+    let memeY = cy - u * 0.6 - (lines.length - 1) * lineH * 0.5;
+    // shadow pass
+    ctx.fillStyle = '#000000';
+    lines.forEach((l, i) => ctx.fillText(l, cx + 2, memeY + i * lineH + 2));
+    ctx.fillStyle = '#aaaaaa';
+    lines.forEach((l, i) => ctx.fillText(l, cx, memeY + i * lineH));
 
-    // Blinking "TAP TO RETRY" — matches h1 / main-menu title colour #D46B4E
-    let blink = Math.floor(Date.now() / 500) % 2 === 0;
-    if (blink) {
-        ctx.font = `${u * 0.9}px "Press Start 2P", monospace`;
+    // Blinking "TAP / SPACE TO RETRY" — #D46B4E like h1
+    if (Math.floor(Date.now() / 500) % 2 === 0) {
+        ctx.font = `${u * 0.72}px "Press Start 2P", monospace`;
+        ctx.fillStyle = '#000000';
+        ctx.fillText('TAP / SPACE TO RETRY', cx + 2, cy + u * 2 + 2);
         ctx.fillStyle = '#D46B4E';
-        ctx.shadowColor = '#000000';
-        ctx.shadowBlur = 3;
-        ctx.fillText('TAP / SPACE TO RETRY', cx, py + panelH * 0.84);
+        ctx.fillText('TAP / SPACE TO RETRY', cx, cy + u * 2);
     }
+
+    // Small unobtrusive countdown
+    let secsLeft = Math.max(0, Math.ceil(gameOverCountdown / 60));
+    ctx.font = `${u * 0.5}px "Press Start 2P", monospace`;
+    ctx.fillStyle = '#555555';
+    ctx.fillText(`returning in ${secsLeft}s`, cx, cy + u * 3.3);
 
     ctx.restore();
 }
@@ -1667,6 +1643,10 @@ function loop() {
             updateVertical();
         }
         drawVertical();
+        if (isGameOver && !isEnteringScore) {
+            if (gameOverCountdown > 0) gameOverCountdown--;
+            else if (gameOverCountdown === 0) { resetGame(); return; }
+        }
         drawGameOverOverlay();
         if (isPlaying && frameCount % 10 === 0) updateScore();
         return;
@@ -1918,6 +1898,10 @@ function loop() {
         ft.draw();
     }
 
+    if (isGameOver && !isEnteringScore) {
+        if (gameOverCountdown > 0) gameOverCountdown--;
+        else if (gameOverCountdown === 0) { resetGame(); return; }
+    }
     drawGameOverOverlay();
 }
 
