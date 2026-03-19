@@ -159,6 +159,14 @@ const bugMap = [
     " 4444444 "
 ];
 
+const bugMap2 = [
+    " 4444444 ",
+    " 44 4 44 ",
+    " 4444444 ",
+    "44  4  44",
+    " 4444444 "
+];
+
 const flyMap1 = [
     "  44444  ",
     " 44 4 44 ",
@@ -430,58 +438,121 @@ class Obstacle {
 
     draw() {
         if (this.type === 'bug') {
-            let offsetY = (frameCount % 16 < 8) ? -2 : 0;
-            drawSprite(this.x, this.y + offsetY, bugMap);
-        } else if (this.type === 'fly') {
-            let flyMap = (frameCount % 12 < 6) ? flyMap1 : flyMap2;
-            drawSprite(this.x, this.y, flyMap);
-        } else if (this.type === 'glitch') {
-            // Randomly draw a blocky cluster
-            ctx.fillStyle = frameCount % 2 === 0 ? '#00FF00' : '#FF00FF'; // Cyberpunk colors
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.fillRect(this.x + Math.random() * this.width/2, this.y + Math.random() * this.height/2, this.width/3, this.height/3);
-        } else if (this.type === 'rate_limit') {
-            // Pulsing red wall with "429" label — rate limiter
-            let pulse = 0.55 + Math.sin(this.phase) * 0.45;
-            ctx.fillStyle = `rgba(200, 20, 20, ${pulse})`;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            ctx.fillStyle = '#ff4444';
-            ctx.fillRect(this.x, this.y, this.width, 4);
-            ctx.fillRect(this.x, this.y + this.height - 4, this.width, 4);
+            let frame   = Math.floor(frameCount / 7) % 2;
+            let offsetY = frame === 0 ? -2 : 0;
+            drawSprite(this.x, this.y + offsetY, frame === 0 ? bugMap : bugMap2);
+            // Glowing red eyes
             ctx.save();
+            ctx.fillStyle = '#ff0000';
+            ctx.shadowColor = '#ff0000';
+            ctx.shadowBlur = 6;
+            ctx.fillRect(this.x + PIXEL_SIZE * 2, this.y + offsetY + PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+            ctx.fillRect(this.x + PIXEL_SIZE * 6, this.y + offsetY + PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+            ctx.restore();
+
+        } else if (this.type === 'fly') {
+            let fMap = (frameCount % 12 < 6) ? flyMap1 : flyMap2;
+            drawSprite(this.x, this.y, fMap);
+            // Faint red wing-glow
+            ctx.save();
+            ctx.fillStyle = 'rgba(229,67,67,0.25)';
+            ctx.fillRect(this.x - 3, this.y - 3, this.width + 6, this.height + 6);
+            ctx.restore();
+
+        } else if (this.type === 'glitch') {
+            // RGB channel-split layers + scanlines
+            ctx.save();
+            ctx.globalAlpha = 0.65;
+            ctx.fillStyle = '#ff0044';
+            ctx.fillRect(this.x - 3, this.y, this.width, this.height);
+            ctx.fillStyle = '#00ff88';
+            ctx.fillRect(this.x,     this.y, this.width, this.height);
+            ctx.fillStyle = '#4488ff';
+            ctx.fillRect(this.x + 3, this.y, this.width, this.height);
+            ctx.globalAlpha = 1;
+            // Scanlines
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            for (let j = this.y; j < this.y + this.height; j += 4) {
+                ctx.fillRect(this.x - 4, j, this.width + 8, 2);
+            }
+            // Random horizontal glitch bar
+            ctx.fillStyle = frameCount % 2 === 0 ? '#ffffff' : '#ff00ff';
+            let gbar = this.y + Math.floor(Math.random() * this.height);
+            ctx.fillRect(this.x - 4, gbar, this.width + 8, 3);
+            ctx.restore();
+
+        } else if (this.type === 'rate_limit') {
+            ctx.save();
+            let pulse = 0.55 + Math.sin(this.phase) * 0.45;
+            ctx.fillStyle = `rgba(180, 15, 15, ${pulse})`;
+            ctx.fillRect(this.x, this.y, this.width, this.height);
+            // Electric edges — top and bottom zigzag
+            ctx.strokeStyle = `rgba(255,100,100,${0.7 + Math.sin(this.phase * 2) * 0.3})`;
+            ctx.lineWidth = 2;
+            for (let edge = 0; edge < 2; edge++) {
+                let ey = edge === 0 ? this.y : this.y + this.height;
+                ctx.beginPath();
+                ctx.moveTo(this.x, ey);
+                let steps = 8;
+                for (let s = 1; s <= steps; s++) {
+                    let ex = this.x + (this.width * s / steps);
+                    let jitter = (s % 2 === 0 ? -5 : 5) * Math.sin(frameCount * 0.25 + s);
+                    ctx.lineTo(ex, ey + jitter);
+                }
+                ctx.stroke();
+            }
+            // Label
             ctx.fillStyle = '#ffffff';
             ctx.font = `bold ${PIXEL_SIZE * 3}px monospace`;
             ctx.textAlign = 'center';
-            ctx.fillText('429', this.x + this.width / 2, this.y + this.height * 0.65);
-            ctx.font = `${PIXEL_SIZE * 1.5}px monospace`;
+            ctx.fillText('429', this.x + this.width / 2, this.y + this.height * 0.62);
             ctx.fillStyle = '#ffaaaa';
+            ctx.font = `${PIXEL_SIZE * 1.5}px monospace`;
             ctx.fillText('RATE LIMIT', this.x + this.width / 2, this.y + this.height - 5);
             ctx.restore();
+
         } else if (this.type === 'timeout') {
-            // Orange fast-mover with speed trails — CLI timeout
             ctx.save();
-            // Speed trails to the right (where enemy came from)
-            ctx.fillStyle = 'rgba(255, 136, 0, 0.2)';
+            // Fading speed trails (to the right — where it came from)
             for (let t = 1; t <= 5; t++) {
-                let tw = this.width * (0.75 - t * 0.1);
-                if (tw > 0) ctx.fillRect(this.x + this.width + t * 6, this.y + t, tw, this.height - t * 2);
+                ctx.fillStyle = `rgba(255,${136 + t * 10},0,${0.12 + t * 0.04})`;
+                let tw = this.width * (0.7 - t * 0.1);
+                if (tw > 0) ctx.fillRect(this.x + this.width + t * 7, this.y + t * 2, tw, this.height - t * 4);
             }
+            // Comet / arrowhead body
             ctx.fillStyle = '#ff8800';
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            ctx.fillStyle = '#ffcc00';
-            ctx.fillRect(this.x, this.y, this.width, 3);
+            ctx.beginPath();
+            ctx.moveTo(this.x + this.width,        this.y + this.height / 2); // tip
+            ctx.lineTo(this.x + this.width * 0.3,  this.y);
+            ctx.lineTo(this.x,                     this.y + 5);
+            ctx.lineTo(this.x,                     this.y + this.height - 5);
+            ctx.lineTo(this.x + this.width * 0.3,  this.y + this.height);
+            ctx.closePath();
+            ctx.fill();
+            // Yellow hot leading edge
+            ctx.fillStyle = '#ffdd00';
+            ctx.beginPath();
+            ctx.moveTo(this.x + this.width,       this.y + this.height / 2);
+            ctx.lineTo(this.x + this.width * 0.6, this.y + 4);
+            ctx.lineTo(this.x + this.width * 0.6, this.y + this.height - 4);
+            ctx.closePath();
+            ctx.fill();
+            // Label above
             ctx.fillStyle = '#ffffff';
             ctx.font = `bold ${PIXEL_SIZE * 1.5}px monospace`;
             ctx.textAlign = 'center';
             ctx.fillText('TIMEOUT', this.x + this.width / 2, this.y - 4);
-            ctx.font = `bold ${PIXEL_SIZE * 3}px monospace`;
-            ctx.fillText('!', this.x + this.width / 2, this.y + this.height * 0.75);
             ctx.restore();
+
         } else if (this.type === 'hallucination') {
-            // Looks like a gold token — brief purple flicker is the only tell
-            let yOffset = Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
-            let isFlicker = (Math.floor(frameCount / 6) % 10 === 0);
+            let yOffset    = Math.sin(frameCount * 0.1 + this.hoverOffset) * 4;
+            let isFlicker  = (Math.floor(frameCount / 6) % 10 === 0);
+            // Pulsing purple aura — the subtle tell even without the flicker
+            ctx.save();
+            let aura = 0.07 + Math.sin(frameCount * 0.09 + this.hoverOffset) * 0.05;
+            ctx.fillStyle = `rgba(180,50,255,${aura})`;
+            ctx.fillRect(this.x - 5, this.y + yOffset - 5, this.width + 10, this.height + 10);
+            ctx.restore();
             drawSprite(this.x, this.y + yOffset, fruitMap, isFlicker ? '#cc44ff' : '#FFD700');
             if (isFlicker) {
                 ctx.save();
@@ -570,6 +641,11 @@ let moveRight = false;
 let graceFrames = 0;    // Grace period at level start — death floor frozen
 let floorSlowTimer = 0; // While > 0, death floor rises much slower
 let verticalBonuses = []; // CTX EXPAND pickups floating above platforms
+
+// Attract / demo mode
+let idleTimer   = 0;   // frames spent on start screen
+let attractMode = false;
+let attractFrame = 0;
 
 const CLI_ERROR_LABELS = ['RATE LIMIT', 'TOOL DENIED', 'CTX FULL', 'BAD PROMPT', 'PERM DENIED', 'DEPRECATED'];
 
@@ -978,7 +1054,8 @@ function saveNewScore() {
 
 function handleInput() {
     if (isEnteringScore) return;
-    
+    if (attractMode) { stopAttract(); return; }
+
     if (!isPlaying && !isGameOver) {
         resetGame();
     } else if (isPlaying) {
@@ -992,6 +1069,7 @@ function handleInput() {
 
 
 window.addEventListener('keydown', (e) => {
+    if (attractMode) { stopAttract(); return; }
     if (currentLevel === 3) {
         if (e.code === 'ArrowLeft') moveLeft = true;
         if (e.code === 'ArrowRight') moveRight = true;
@@ -1049,7 +1127,169 @@ canvas.parentElement.addEventListener('mousedown', (e) => {
     if (e.button === 0) handleInput();
 });
 
+// ---------------------------------------------------------------------------
+// Attract / demo mode
+// ---------------------------------------------------------------------------
+
+function startAttract() {
+    attractMode  = true;
+    attractFrame = 0;
+    idleTimer    = 0;
+    startScreen.classList.add('hidden');
+}
+
+function stopAttract() {
+    attractMode  = false;
+    attractFrame = 0;
+    idleTimer    = 0;
+    startScreen.classList.remove('hidden');
+}
+
+function drawAttract() {
+    let phase = Math.min(2, Math.floor(attractFrame / 100)); // 0 → L1, 1 → L2, 2 → L3
+    let pf    = attractFrame % 100;                          // 0-99 within each phase
+
+    // Background
+    const bgColors = ['#242424', '#1a0033', '#110011'];
+    ctx.fillStyle = bgColors[phase];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (phase < 2) {
+        // ---- Horizontal runner scene (L1 or L2) ----
+        ctx.fillStyle = phase === 0 ? '#1c1c1c' : '#120024';
+        ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+        ctx.fillStyle = phase === 0 ? '#555555' : '#4d004d';
+        ctx.fillRect(0, GROUND_Y, canvas.width, 3);
+        // Stars
+        ctx.fillStyle = phase === 0 ? '#3a3a3a' : '#330033';
+        for (let s of stars) ctx.fillRect(s.x, s.y, s.size, s.size);
+
+        // Animated Claude — jumps over incoming enemy
+        let px       = canvas.width * 0.22;
+        let jumpY    = Math.max(0, Math.sin((pf / 100) * Math.PI * 2) * 65);
+        let py       = GROUND_Y - 40 - jumpY;
+        let pMap     = (Math.floor(pf / 6) % 2 === 0) ? claudeFrame1 : claudeFrame2;
+        drawSprite(px, py, pMap, COLOR_CLAUDE);
+
+        if (phase === 0) {
+            // Bug crawling toward player
+            let bx     = canvas.width * 1.1 - (pf / 100) * (canvas.width * 1.3);
+            let bobOff = (Math.floor(pf / 8) % 2 === 0) ? -2 : 0;
+            drawSprite(bx, GROUND_Y - 28 + bobOff, Math.floor(pf / 7) % 2 === 0 ? bugMap : bugMap2);
+            ctx.save();
+            ctx.fillStyle = '#ff0000'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 5;
+            ctx.fillRect(bx + PIXEL_SIZE * 2, GROUND_Y - 28 + bobOff + PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+            ctx.fillRect(bx + PIXEL_SIZE * 6, GROUND_Y - 28 + bobOff + PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+            ctx.restore();
+            // Fly bouncing mid-air
+            let fx   = canvas.width * 0.78 - (pf / 100) * (canvas.width * 0.5);
+            let fy   = GROUND_Y - 65 + Math.sin(pf * 0.12) * 15;
+            let fMap = (Math.floor(pf / 6) % 2 === 0) ? flyMap1 : flyMap2;
+            drawSprite(fx, fy, fMap);
+        } else {
+            // RGB-split glitch block
+            let gx = canvas.width * 0.85 - (pf / 100) * (canvas.width * 0.8);
+            let gy = GROUND_Y - 28;
+            ctx.save();
+            ctx.globalAlpha = 0.65;
+            ctx.fillStyle = '#ff0044'; ctx.fillRect(gx - 3, gy, 24, 24);
+            ctx.fillStyle = '#00ff88'; ctx.fillRect(gx,     gy, 24, 24);
+            ctx.fillStyle = '#4488ff'; ctx.fillRect(gx + 3, gy, 24, 24);
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = 'rgba(0,0,0,0.4)';
+            for (let jj = gy; jj < gy + 24; jj += 4) ctx.fillRect(gx - 4, jj, 32, 2);
+            ctx.restore();
+            // 429 rate-limit wall
+            let rlx   = canvas.width * 0.62 - (pf / 100) * (canvas.width * 0.55);
+            let pulse = 0.5 + Math.sin(pf * 0.1) * 0.5;
+            ctx.save();
+            ctx.fillStyle = `rgba(200,20,20,${pulse})`;
+            ctx.fillRect(rlx, GROUND_Y - 32, 64, 32);
+            ctx.fillStyle = '#ff4444'; ctx.fillRect(rlx, GROUND_Y - 32, 64, 3);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 14px monospace'; ctx.textAlign = 'center';
+            ctx.fillText('429', rlx + 32, GROUND_Y - 12);
+            ctx.restore();
+        }
+
+    } else {
+        // ---- Vertical platformer scene (L3) ----
+        ctx.fillStyle = '#330033';
+        for (let s of stars) ctx.fillRect(s.x, (s.y + attractFrame * 0.5) % canvas.height, s.size, s.size);
+
+        // Static platform layout
+        let pd = [
+            { x: canvas.width * 0.05, y: canvas.height * 0.80, w: canvas.width * 0.32, type: 'normal'  },
+            { x: canvas.width * 0.45, y: canvas.height * 0.65, w: 80,                  type: 'moving',  dx: Math.sin(attractFrame * 0.05) * 70 },
+            { x: canvas.width * 0.12, y: canvas.height * 0.50, w: 90,                  type: 'enemy'   },
+            { x: canvas.width * 0.55, y: canvas.height * 0.36, w: 80,                  type: 'boost'   },
+            { x: canvas.width * 0.18, y: canvas.height * 0.20, w: 100,                 type: 'normal'  },
+        ];
+        for (let pl of pd) {
+            let ox = pl.dx || 0;
+            if      (pl.type === 'enemy')  { ctx.fillStyle = '#550000'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 12); ctx.fillStyle = '#ff0000'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 3); ctx.save(); ctx.fillStyle='#ff6666'; ctx.font='7px monospace'; ctx.textAlign='center'; ctx.fillText('RATE LIMIT', pl.x+ox+pl.w/2, pl.y-5); ctx.restore(); }
+            else if (pl.type === 'boost')  { ctx.fillStyle = '#003300'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 12); ctx.fillStyle = '#00ff66'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 3); ctx.save(); ctx.fillStyle='#00ff66'; ctx.font='7px monospace'; ctx.textAlign='center'; ctx.fillText('GPU BOOST', pl.x+ox+pl.w/2, pl.y-5); ctx.restore(); }
+            else if (pl.type === 'moving') { ctx.fillStyle = '#2d0045'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 12); ctx.fillStyle = '#9900cc'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 3); }
+            else                           { ctx.fillStyle = '#001a33'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 12); ctx.fillStyle = '#0055cc'; ctx.fillRect(pl.x+ox, pl.y, pl.w, 3); }
+            // CTX diamond on safe platforms
+            if (pl.type === 'normal') {
+                let bx2 = pl.x + (pl.dx||0) + pl.w/2 - 8, by2 = pl.y - 30;
+                let hov = Math.sin(attractFrame * 0.08) * 4;
+                ctx.save(); ctx.fillStyle = '#00ffff'; ctx.globalAlpha = 0.85;
+                ctx.beginPath(); ctx.moveTo(bx2+8,by2+hov); ctx.lineTo(bx2+16,by2+8+hov); ctx.lineTo(bx2+8,by2+16+hov); ctx.lineTo(bx2,by2+8+hov); ctx.closePath(); ctx.fill();
+                ctx.globalAlpha=1; ctx.restore();
+            }
+        }
+        // Bouncing Claude
+        let bi   = Math.floor(pf / 33) % 3;
+        let bp   = pd[bi + 1];
+        let bfr  = (pf % 33) / 33;
+        let bclY = bp.y - 40 - Math.abs(Math.sin(bfr * Math.PI)) * 80;
+        drawSprite(bp.x + (bp.dx||0) + bp.w/2 - 24, bclY, claudeFrame1, COLOR_CLAUDE);
+        // Rising floor
+        let floorY = canvas.height * 0.95 - (pf * 0.35);
+        ctx.fillStyle = 'rgba(255,0,0,0.35)';
+        ctx.fillRect(0, floorY, canvas.width, canvas.height - floorY);
+        ctx.fillStyle = '#ff0000'; ctx.fillRect(0, floorY, canvas.width, 2);
+    }
+
+    // ---- Overlay text ----
+    const phaseColors = ['#FFD700', '#ff00ff', '#00ff66'];
+    const phaseTitles = ['LEVEL 1: BUG HUNT', 'LEVEL 2: CORRUPTED', 'LEVEL 3: ESCAPE'];
+    const phaseLines  = [
+        ['JUMP OVER BUGS, FLIES & SINKHOLES', 'COLLECT 1000 TOKENS TO ADVANCE'],
+        ['GLITCHES  TIMEOUTS  RATE LIMITS',   'GOLD TOKENS MAY BE HALLUCINATIONS!'],
+        ['\u2190 \u2192 MOVE   BOUNCE ON PLATFORMS', 'CYAN DIAMONDS SLOW THE RED FLOOR'],
+    ];
+    ctx.save();
+    ctx.textAlign = 'center';
+    // Top banner
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0, 0, canvas.width, 82);
+    ctx.fillStyle = phaseColors[phase];
+    ctx.font = `bold ${PIXEL_SIZE * 2.5}px "Press Start 2P", monospace`;
+    ctx.fillText(phaseTitles[phase], canvas.width / 2, 30);
+    ctx.fillStyle = '#cccccc';
+    ctx.font = `${PIXEL_SIZE * 1.4}px "Press Start 2P", monospace`;
+    phaseLines[phase].forEach((line, i) => ctx.fillText(line, canvas.width / 2, 52 + i * 18));
+    // Bottom bar
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0, canvas.height - 38, canvas.width, 38);
+    ctx.fillStyle = (Math.floor(attractFrame / 20) % 2 === 0) ? '#ffffff' : '#666666';
+    ctx.font = `${PIXEL_SIZE * 1.5}px "Press Start 2P", monospace`;
+    ctx.fillText('PRESS ANY KEY TO PLAY', canvas.width / 2, canvas.height - 13);
+    // Phase indicator dots
+    for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = i === phase ? '#ffffff' : '#444444';
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2 - 16 + i * 16, canvas.height - 50, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
 // Game Loop
+// ---------------------------------------------------------------------------
 
 function updateVertical() {
     // Horizontal movement
@@ -1301,7 +1541,19 @@ function loop() {
     }
 
     requestAnimationFrame(loop);
-    
+
+    // Attract / idle demo mode
+    if (attractMode) {
+        attractFrame++;
+        if (attractFrame >= 300) stopAttract();
+        else drawAttract();
+        return;
+    }
+    if (!isPlaying && !isGameOver) {
+        idleTimer++;
+        if (idleTimer >= 600) startAttract(); // 10 s at 60 fps
+    }
+
     ctx.fillStyle = COLOR_BG;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
