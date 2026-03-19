@@ -48,6 +48,12 @@ Local high scores are saved to your browser!
 
 This project is created strictly for fun and educational purposes. **It has absolutely no affiliation with Anthropic**. We just wanted to build a fun 2D homage to demonstrate some love for the awesome Claude CLI! ❤️
 
+## ☕ Support the Project
+
+If you enjoy the game, consider buying us a coffee!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/H2H51MPWG)
+
 ## 💻 Credits
 
 Developed by **Eduardo Arana** and **Soda 🥤**
