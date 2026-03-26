@@ -151,20 +151,64 @@ const claudeFrame2 = [
     "   1 11 1   "
 ];
 
+// Bug — beetle silhouette with antennae, wing cases, and legs
 const bugMap = [
-    " 4444444 ",
-    " 4 4 4 4 ",
-    " 4444444 ",
-    " 4  4  4 ",
-    " 4444444 "
+    "4   4   4",
+    " 444 444 ",
+    "444444444",
+    "4 4 4 4 4",
+    " 444 444 "
 ];
 
 const bugMap2 = [
-    " 4444444 ",
-    " 44 4 44 ",
-    " 4444444 ",
-    "44  4  44",
-    " 4444444 "
+    "4   4   4",
+    " 444 444 ",
+    "444444444",
+    " 4 4 4 4 ",
+    " 444 444 "
+];
+
+// Glitch — two-frame corrupted data-demon (6×6 at PIXEL_SIZE=4)
+const glitchMap1 = [
+    "666666",
+    "6 66 6",
+    "666666",
+    " 6  6 ",
+    "666666",
+    " 6666 "
+];
+
+const glitchMap2 = [
+    " 6666 ",
+    "66  66",
+    "666666",
+    "6 66 6",
+    "666666",
+    " 6  6 "
+];
+
+// Rate Limit — brick-wall barrier (16×8 at PIXEL_SIZE=4)
+const rateLimitMap = [
+    "6666666666666666",
+    "6   66   66   6 ",
+    "6666666666666666",
+    " 66   66   66   ",
+    "6666666666666666",
+    "6   66   66   6 ",
+    "6666666666666666",
+    " 66   66   66   "
+];
+
+// Timeout — lightning bolt (8×8 at PIXEL_SIZE=4)
+const timeoutMap = [
+    "  6666  ",
+    "  666   ",
+    " 6666   ",
+    "66666   ",
+    "  66666 ",
+    "   6666 ",
+    "   666  ",
+    "   66   "
 ];
 
 // Bat frames — wings sweep up then down
@@ -451,9 +495,19 @@ class Obstacle {
         if (this.type === 'bug') {
             let frame   = Math.floor(frameCount / 7) % 2;
             let offsetY = frame === 0 ? -3 : 0;
-            const BPS = 6; // bug pixel size — 1.5× for visibility on mobile
+            const BPS = 6;
+            // Crawl-dust trail behind the bug
+            ctx.save();
+            ctx.fillStyle = 'rgba(100,50,10,0.55)';
+            const dustSeed = frameCount * 5 + Math.floor(this.x);
+            for (let i = 0; i < 5; i++) {
+                let dx = this.x + this.width + ((dustSeed * (i + 2)) % 44);
+                let dy = GROUND_Y - 1 - ((dustSeed * (i + 5)) % 10);
+                ctx.fillRect(dx, dy, BPS, BPS);
+            }
+            ctx.restore();
             drawSprite(this.x, this.y + offsetY, frame === 0 ? bugMap : bugMap2, null, BPS);
-            // Glowing red eyes (scaled to BPS)
+            // Glowing red eyes
             ctx.save();
             ctx.fillStyle = '#ff0000';
             ctx.shadowColor = '#ff0000';
@@ -488,26 +542,18 @@ class Obstacle {
 
         } else if (this.type === 'glitch') {
             ctx.save();
-            // Solid neon body so it has a visible form
-            ctx.fillStyle = '#cc00ff';
-            ctx.fillRect(this.x, this.y, this.width, this.height);
-            // Darker face / body detail
-            ctx.fillStyle = '#220033';
-            ctx.fillRect(this.x + 4, this.y + 4, this.width - 8, this.height - 8);
-            // Glitchy eyes — flash between colours
-            let eyeCol = frameCount % 4 < 2 ? '#ffffff' : '#ff00ff';
-            ctx.fillStyle = eyeCol;
-            ctx.fillRect(this.x + 4, this.y + 6, 5, 4);
-            ctx.fillRect(this.x + this.width - 9, this.y + 6, 5, 4);
-            // RGB channel-split ghost layers
+            let gFrame = Math.floor(frameCount / 3) % 2;
+            let gMap   = gFrame === 0 ? glitchMap1 : glitchMap2;
+            let gColor = gFrame === 0 ? '#cc00ff' : '#00ffcc';
+            // RGB channel-split ghost layers on the sprite shape
             ctx.globalAlpha = 0.35;
-            ctx.fillStyle = '#ff0044';
-            ctx.fillRect(this.x - 4, this.y, this.width, this.height);
-            ctx.fillStyle = '#4488ff';
-            ctx.fillRect(this.x + 4, this.y, this.width, this.height);
+            drawSprite(this.x - 4, this.y, gMap, '#ff0044');
+            drawSprite(this.x + 4, this.y, gMap, '#4488ff');
             ctx.globalAlpha = 1;
-            // Random horizontal glitch bar
-            ctx.fillStyle = frameCount % 2 === 0 ? '#ffffff' : '#ff00ff';
+            // Main neon sprite
+            drawSprite(this.x, this.y, gMap, gColor);
+            // Random horizontal glitch scan-line
+            ctx.fillStyle = gFrame === 0 ? '#ffffff' : '#ff00ff';
             let gbar = this.y + Math.floor(Math.random() * this.height);
             ctx.fillRect(this.x - 2, gbar, this.width + 4, 2);
             ctx.restore();
@@ -515,10 +561,10 @@ class Obstacle {
         } else if (this.type === 'rate_limit') {
             ctx.save();
             let pulse = 0.55 + Math.sin(this.phase) * 0.45;
-            ctx.fillStyle = `rgba(180, 15, 15, ${pulse})`;
-            ctx.fillRect(this.x, this.y, this.width, this.height);
+            // Brick-wall sprite with pulsing alpha
+            drawSprite(this.x, this.y, rateLimitMap, `rgba(200,20,20,${pulse.toFixed(2)})`);
             // Electric edges — top and bottom zigzag
-            ctx.strokeStyle = `rgba(255,100,100,${0.7 + Math.sin(this.phase * 2) * 0.3})`;
+            ctx.strokeStyle = `rgba(255,100,100,${(0.7 + Math.sin(this.phase * 2) * 0.3).toFixed(2)})`;
             ctx.lineWidth = 2;
             for (let edge = 0; edge < 2; edge++) {
                 let ey = edge === 0 ? this.y : this.y + this.height;
@@ -546,28 +592,21 @@ class Obstacle {
             ctx.save();
             // Fading speed trails (to the right — where it came from)
             for (let t = 1; t <= 5; t++) {
-                ctx.fillStyle = `rgba(255,${136 + t * 10},0,${0.12 + t * 0.04})`;
+                ctx.globalAlpha = 0.12 + t * 0.04;
                 let tw = this.width * (0.7 - t * 0.1);
-                if (tw > 0) ctx.fillRect(this.x + this.width + t * 7, this.y + t * 2, tw, this.height - t * 4);
+                if (tw > 0) {
+                    ctx.fillStyle = `rgba(255,${136 + t * 10},0,1)`;
+                    ctx.fillRect(this.x + this.width + t * 7, this.y + t * 2, tw, this.height - t * 4);
+                }
             }
-            // Comet / arrowhead body
-            ctx.fillStyle = '#ff8800';
-            ctx.beginPath();
-            ctx.moveTo(this.x + this.width,        this.y + this.height / 2); // tip
-            ctx.lineTo(this.x + this.width * 0.3,  this.y);
-            ctx.lineTo(this.x,                     this.y + 5);
-            ctx.lineTo(this.x,                     this.y + this.height - 5);
-            ctx.lineTo(this.x + this.width * 0.3,  this.y + this.height);
-            ctx.closePath();
-            ctx.fill();
-            // Yellow hot leading edge
-            ctx.fillStyle = '#ffdd00';
-            ctx.beginPath();
-            ctx.moveTo(this.x + this.width,       this.y + this.height / 2);
-            ctx.lineTo(this.x + this.width * 0.6, this.y + 4);
-            ctx.lineTo(this.x + this.width * 0.6, this.y + this.height - 4);
-            ctx.closePath();
-            ctx.fill();
+            ctx.globalAlpha = 1;
+            // Lightning bolt sprite with orange glow
+            ctx.shadowColor = '#ff8800';
+            ctx.shadowBlur = 12;
+            drawSprite(this.x, this.y, timeoutMap, '#ff8800');
+            ctx.shadowBlur = 0;
+            // Yellow hot core (inner offset)
+            drawSprite(this.x + PIXEL_SIZE, this.y + PIXEL_SIZE, timeoutMap, '#ffdd00');
             // Label above
             ctx.fillStyle = '#ffffff';
             ctx.font = `bold ${PIXEL_SIZE * 1.5}px monospace`;
