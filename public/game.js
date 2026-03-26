@@ -167,16 +167,23 @@ const bugMap2 = [
     " 4444444 "
 ];
 
-const flyMap1 = [
-    "  44444  ",
-    " 44 4 44 ",
-    "  44444  "
+// Bat frames — wings sweep up then down
+const batMap1 = [
+    "3   333   3",
+    "33333 33333",
+    " 333   333 ",
+    "  3 333 3  ",
+    "   33333   ",
+    "    3 3    "
 ];
 
-const flyMap2 = [
-    " 4444444 ",
-    " 4  4  4 ",
-    " 4444444 "
+const batMap2 = [
+    "  33   33  ",
+    " 333   333 ",
+    "33333 33333",
+    "3   333   3",
+    "   33333   ",
+    "    3 3    "
 ];
 
 const fruitMap = [
@@ -371,8 +378,8 @@ class Obstacle {
             this.height = 8 * PIXEL_SIZE;   // ~32px — with leg-bounce room
             this.y = GROUND_Y - this.height;
         } else if (this.type === 'fly') {
-            this.width = 8 * PIXEL_SIZE;
-            this.height = 4 * PIXEL_SIZE;
+            this.width = 11 * PIXEL_SIZE;
+            this.height = 6 * PIXEL_SIZE;
             let isHigh = Math.random() > 0.5;
             this.baseY = isHigh ? GROUND_Y - this.height - 50 : GROUND_Y - this.height - 20;
             this.y = this.baseY;
@@ -456,12 +463,27 @@ class Obstacle {
             ctx.restore();
 
         } else if (this.type === 'fly') {
-            let fMap = (frameCount % 12 < 6) ? flyMap1 : flyMap2;
-            drawSprite(this.x, this.y, fMap);
-            // Faint red wing-glow
+            let bMap = (frameCount % 16 < 8) ? batMap1 : batMap2;
             ctx.save();
-            ctx.fillStyle = 'rgba(229,67,67,0.25)';
-            ctx.fillRect(this.x - 3, this.y - 3, this.width + 6, this.height + 6);
+            // Scatter dark pixel aura around bat
+            ctx.fillStyle = 'rgba(20,0,40,0.7)';
+            const seed = frameCount * 7 + Math.floor(this.x);
+            for (let i = 0; i < 6; i++) {
+                let px = this.x + ((seed * (i + 3)) % (this.width + 20)) - 10;
+                let py = this.y + ((seed * (i + 7)) % (this.height + 16)) - 8;
+                ctx.fillRect(px, py, PIXEL_SIZE, PIXEL_SIZE);
+            }
+            ctx.restore();
+            // Draw bat in black
+            drawSprite(this.x, this.y, bMap, null, PIXEL_SIZE);
+            // Tiny glowing red eyes on the body row
+            ctx.save();
+            ctx.fillStyle = '#ff2200';
+            ctx.shadowColor = '#ff2200';
+            ctx.shadowBlur = 6;
+            let eyeY = this.y + 4 * PIXEL_SIZE + 1;
+            ctx.fillRect(this.x + 3 * PIXEL_SIZE, eyeY, PIXEL_SIZE, PIXEL_SIZE);
+            ctx.fillRect(this.x + 7 * PIXEL_SIZE, eyeY, PIXEL_SIZE, PIXEL_SIZE);
             ctx.restore();
 
         } else if (this.type === 'glitch') {
@@ -1322,8 +1344,8 @@ function drawAttract() {
             // Fly bouncing mid-air
             let fx   = canvas.width * 0.78 - (pf / 240) * (canvas.width * 0.5);
             let fy   = GROUND_Y - 65 + Math.sin(pf * 0.05) * 15;
-            let fMap = (Math.floor(pf / 6) % 2 === 0) ? flyMap1 : flyMap2;
-            drawSprite(fx, fy, fMap);
+            let fMap = (Math.floor(pf / 8) % 2 === 0) ? batMap1 : batMap2;
+            drawSprite(fx, fy, fMap, null, PIXEL_SIZE);
         } else {
             // RGB-split glitch block
             let gx = canvas.width * 0.85 - (pf / 240) * (canvas.width * 0.8);
