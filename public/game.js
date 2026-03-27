@@ -288,9 +288,14 @@ class FloatingText {
         ctx.textAlign = 'center';
         
         if (this.isStatic) {
-            // Cap to ~5% of canvas width so it never overflows on mobile
+            // Start at target size, then shrink to fit 88% of canvas width
             let base = Math.min(24, canvas.width * 0.05);
-            ctx.font = `${base * this.scale}px "Press Start 2P", Courier`;
+            let fontSize = base * this.scale;
+            ctx.font = `${fontSize}px "Press Start 2P", Courier`;
+            let measured = ctx.measureText(this.text).width;
+            let maxW = canvas.width * 0.88;
+            if (measured > maxW) fontSize *= maxW / measured;
+            ctx.font = `${fontSize}px "Press Start 2P", Courier`;
             let scalePulse = 1 + Math.sin(frameCount * 0.2) * 0.05;
             ctx.translate(canvas.width / 2, this.y);
             ctx.scale(scalePulse, scalePulse);
@@ -974,58 +979,84 @@ function updateGround(activeSpeed) {
         if (obs.type === 'hole') {
             let hx = obs.x, hy = GROUND_Y, hw = obs.width, hh = canvas.height - GROUND_Y;
             let isL2 = currentLevel === 2;
+            let rimColor  = isL2 ? '#7700cc' : '#cc4400';
+            let rimGlow   = isL2 ? '#cc00ff' : '#ff5500';
+            let rockBase  = isL2 ? '#1e0030' : '#2a211a';
+            let rockLight = isL2 ? '#5a1080' : '#6a4830';
+            let rockDark  = isL2 ? '#0d0018' : '#140d08';
 
-            // Abyss fill — semi-transparent so ground colour bleeds through
-            ctx.fillStyle = isL2 ? 'rgba(5,0,16,0.82)' : 'rgba(10,8,8,0.80)';
+            // Solid abyss base
+            ctx.fillStyle = isL2 ? '#03000e' : '#070404';
             ctx.fillRect(hx, hy, hw, hh);
 
-            // Faint depth gradient overlay (darker toward bottom)
+            // Animated scrolling depth lines
+            ctx.save();
+            ctx.globalAlpha = 0.10;
+            ctx.fillStyle = isL2 ? '#4400aa' : '#440000';
+            let lspc = 18;
+            let loff = (frameCount * 0.7) % lspc;
+            for (let ly = hy + loff; ly < hy + hh; ly += lspc) {
+                ctx.fillRect(hx + 2, ly, hw - 4, 2);
+            }
+            ctx.restore();
+
+            // Depth gradient overlay
             let grad = ctx.createLinearGradient(hx, hy, hx, hy + hh);
-            grad.addColorStop(0,   isL2 ? 'rgba(60,0,80,0.18)' : 'rgba(40,28,20,0.18)');
-            grad.addColorStop(1,   'rgba(0,0,0,0.55)');
+            grad.addColorStop(0,   isL2 ? 'rgba(80,0,120,0.30)' : 'rgba(90,40,20,0.30)');
+            grad.addColorStop(1,   'rgba(0,0,0,0.75)');
             ctx.fillStyle = grad;
             ctx.fillRect(hx, hy, hw, hh);
 
-            // Rock / rubble colour palette
-            let rockBase  = isL2 ? '#1e0030' : '#2a211a';
-            let rockLight = isL2 ? '#3a0050' : '#4a3828';
-            let rockDark  = isL2 ? '#0d0018' : '#140d08';
-
-            // Left crumbling wall
+            // Crumbling side walls (thicker)
             ctx.fillStyle = rockLight;
-            ctx.fillRect(hx, hy, 5, hh);
+            ctx.fillRect(hx, hy, 7, hh);
             ctx.fillStyle = rockBase;
-            ctx.fillRect(hx + 5, hy, 3, hh);
-
-            // Right crumbling wall
+            ctx.fillRect(hx + 7, hy, 3, hh);
             ctx.fillStyle = rockLight;
-            ctx.fillRect(hx + hw - 5, hy, 5, hh);
+            ctx.fillRect(hx + hw - 7, hy, 7, hh);
             ctx.fillStyle = rockBase;
-            ctx.fillRect(hx + hw - 8, hy, 3, hh);
+            ctx.fillRect(hx + hw - 10, hy, 3, hh);
 
-            // Stalactites hanging from the rim — pixel-art spikes
+            // Glowing danger rim
             ctx.save();
-            let seed = Math.floor(hx / 4); // stable per hole (doesn't flicker)
-            let spikeW = 6, gap = 10;
-            for (let sx = hx + 4; sx < hx + hw - 4; sx += spikeW + gap) {
-                // pseudo-random height using cheap hash
-                let ph = (((seed ^ (sx * 7)) * 2654435761) >>> 0) % 14 + 8;
-                // alternate light/dark
-                let col = (Math.floor(sx / 4) % 2 === 0) ? rockLight : rockBase;
-                ctx.fillStyle = col;
-                ctx.fillRect(sx, hy, spikeW, ph);
-                // dark tip
+            ctx.shadowColor = rimGlow;
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = rimColor;
+            ctx.fillRect(hx, hy, hw, 4);
+            ctx.restore();
+
+            // Hazard chevron stripes on ground at both pit edges
+            ctx.save();
+            let stripeColor = isL2 ? 'rgba(180,0,255,0.55)' : 'rgba(255,150,0,0.65)';
+            let stripeH = 5, stripeGap = 9, stripeW = 8;
+            for (let sy = hy - 22; sy < hy - 2; sy += stripeH + stripeGap) {
+                ctx.fillStyle = stripeColor;
+                ctx.fillRect(hx - stripeW, sy, stripeW, stripeH);
+                ctx.fillRect(hx + hw,      sy, stripeW, stripeH);
+            }
+            ctx.restore();
+
+            // Stalactites — larger with bright mid + dark tip
+            ctx.save();
+            let seed = Math.floor(hx / 4);
+            let spikeW = 8, gap = 8;
+            for (let sx = hx + 8; sx < hx + hw - 8; sx += spikeW + gap) {
+                let ph = (((seed ^ (sx * 7)) * 2654435761) >>> 0) % 18 + 10;
+                ctx.fillStyle = (Math.floor(sx / 4) % 2 === 0) ? rockLight : rockBase;
+                ctx.fillRect(sx, hy + 4, spikeW, ph);
+                ctx.fillStyle = isL2 ? '#7a30a8' : '#8a5838';
+                ctx.fillRect(sx + 1, hy + 4 + ph - 6, spikeW - 2, 4);
                 ctx.fillStyle = rockDark;
-                ctx.fillRect(sx + 1, hy + ph - 3, spikeW - 2, 3);
+                ctx.fillRect(sx + 2, hy + 4 + ph - 2, spikeW - 4, 2);
             }
 
-            // Scattered rubble pebbles on the upper ledge
+            // Rubble pebbles at the rim
             ctx.fillStyle = rockLight;
             let pebbleSeed = seed + 99;
-            for (let p = 0; p < 5; p++) {
-                let px2 = hx + (((pebbleSeed * (p + 1) * 1664525) >>> 0) % Math.max(1, hw - 12)) + 6;
-                let py2 = hy + 2 + (((pebbleSeed * (p + 3) * 22695477) >>> 0) % 4);
-                ctx.fillRect(px2, py2, 3, 2);
+            for (let p = 0; p < 6; p++) {
+                let px2 = hx + 8 + (((pebbleSeed * (p + 1) * 1664525) >>> 0) % Math.max(1, hw - 20));
+                let py2 = hy + 5 + (((pebbleSeed * (p + 3) * 22695477) >>> 0) % 5);
+                ctx.fillRect(px2, py2, 4, 2);
             }
             ctx.restore();
         }
